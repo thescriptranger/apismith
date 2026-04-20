@@ -75,9 +75,9 @@ internal sealed class FunctionsReader
                 SqlType: sqlType,
                 IsNullable: reader.GetBoolean(7),
                 Direction: reader.GetBoolean(6) ? ParameterDirection.InOut : ParameterDirection.In,
-                MaxLength: reader.IsDBNull(8) ? null : (int)reader.GetInt16(8),
-                Precision: reader.IsDBNull(9) ? null : (int)reader.GetByte(9),
-                Scale: reader.IsDBNull(10) ? null : (int)reader.GetByte(10)));
+                MaxLength: reader.IsDBNull(8) ? null : Convert.ToInt32(reader.GetValue(8)),
+                Precision: reader.IsDBNull(9) ? null : Convert.ToInt32(reader.GetValue(9)),
+                Scale: reader.IsDBNull(10) ? null : Convert.ToInt32(reader.GetValue(10))));
         }
 
         return grouped

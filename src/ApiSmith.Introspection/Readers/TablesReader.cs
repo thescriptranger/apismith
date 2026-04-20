@@ -82,8 +82,8 @@ internal sealed class TablesReader
                 DataType: reader.GetString(4),
                 IsNullable: string.Equals(reader.GetString(5), "YES", System.StringComparison.OrdinalIgnoreCase),
                 MaxLength: reader.IsDBNull(6) ? null : reader.GetInt32(6),
-                Precision: reader.IsDBNull(7) ? null : (int)reader.GetByte(7),
-                Scale: reader.IsDBNull(8) ? null : (int)reader.GetByte(8),
+                Precision: reader.IsDBNull(7) ? null : Convert.ToInt32(reader.GetValue(7)),
+                Scale: reader.IsDBNull(8) ? null : Convert.ToInt32(reader.GetValue(8)),
                 DefaultValue: reader.IsDBNull(9) ? null : reader.GetString(9)));
         }
         return rows;

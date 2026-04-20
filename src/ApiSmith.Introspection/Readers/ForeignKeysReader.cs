@@ -56,8 +56,8 @@ internal sealed class ForeignKeysReader
                     fkName,
                     fromSchema, reader.GetString(2),
                     toSchema,   reader.GetString(5),
-                    reader.GetByte(8),
-                    reader.GetByte(9));
+                    Convert.ToByte(reader.GetValue(8)),
+                    Convert.ToByte(reader.GetValue(9)));
                 grouped[fkName] = row;
             }
 

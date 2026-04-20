@@ -84,9 +84,9 @@ internal sealed class StoredProceduresReader
                 SqlType: reader.IsDBNull(4) ? "sql_variant" : reader.GetString(4),
                 IsNullable: reader.GetBoolean(6),
                 Direction: reader.GetBoolean(5) ? ParameterDirection.InOut : ParameterDirection.In,
-                MaxLength: reader.IsDBNull(7) ? null : (int)reader.GetInt16(7),
-                Precision: reader.IsDBNull(8) ? null : (int)reader.GetByte(8),
-                Scale: reader.IsDBNull(9) ? null : (int)reader.GetByte(9)));
+                MaxLength: reader.IsDBNull(7) ? null : Convert.ToInt32(reader.GetValue(7)),
+                Precision: reader.IsDBNull(8) ? null : Convert.ToInt32(reader.GetValue(8)),
+                Scale: reader.IsDBNull(9) ? null : Convert.ToInt32(reader.GetValue(9))));
         }
 
         return grouped

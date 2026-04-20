@@ -57,7 +57,7 @@ public sealed class UniqueConstraintsReader
                 reader.GetString(1),
                 reader.GetString(2),
                 reader.GetString(3),
-                reader.GetByte(4)));
+                Convert.ToByte(reader.GetValue(4))));
         }
 
         return GroupRows(rows);

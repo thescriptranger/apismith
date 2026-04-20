@@ -66,7 +66,7 @@ public sealed class IndexesReader
                 IndexName: reader.GetString(2),
                 IsUnique: reader.GetBoolean(3),
                 ColumnName: reader.GetString(4),
-                KeyOrdinal: reader.GetByte(5)));
+                KeyOrdinal: Convert.ToByte(reader.GetValue(5))));
         }
 
         return GroupRows(rows);

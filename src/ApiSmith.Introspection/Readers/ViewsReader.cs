@@ -50,8 +50,8 @@ internal sealed class ViewsReader
                 IsIdentity: false,
                 IsComputed: false,
                 MaxLength: reader.IsDBNull(6) ? null : reader.GetInt32(6),
-                Precision: reader.IsDBNull(7) ? null : (int)reader.GetByte(7),
-                Scale: reader.IsDBNull(8) ? null : (int)reader.GetByte(8),
+                Precision: reader.IsDBNull(7) ? null : Convert.ToInt32(reader.GetValue(7)),
+                Scale: reader.IsDBNull(8) ? null : Convert.ToInt32(reader.GetValue(8)),
                 DefaultValue: null));
         }
 
