@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ApiSmith.Generation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ApiSmith.Core\ApiSmith.Core.csproj" />
     <ProjectReference Include="..\ApiSmith.Config\ApiSmith.Config.csproj" />
     <ProjectReference Include="..\ApiSmith.Introspection\ApiSmith.Introspection.csproj" />

@@ -218,8 +218,32 @@ public sealed record NamedTable(
         var parameter = Casing.ToCamel(entity);
         var route = collection.ToLowerInvariant();
 
+        // Build a DB-column-name -> enum type name map from CHECK IN constraints.
+        // Identity/computed columns are excluded (they won't appear on write DTOs).
+        var enumByDbName = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase);
+        foreach (var ck in table.CheckConstraints)
+        {
+            var parsed = EnumCandidates.TryParseInList(ck.Expression);
+            if (parsed is null) continue;
+
+            var srcCol = table.Columns.FirstOrDefault(c =>
+                string.Equals(c.Name, parsed.Column, System.StringComparison.OrdinalIgnoreCase));
+            if (srcCol is null || srcCol.IsIdentity || srcCol.IsComputed) continue;
+
+            if (!enumByDbName.ContainsKey(srcCol.Name))
+            {
+                enumByDbName[srcCol.Name] = Casing.ToPascal(parsed.Column);
+            }
+        }
+
         var columns = table.Columns
-            .Select(NamedColumn.From)
+            .Select(c =>
+            {
+                var nc = NamedColumn.From(c);
+                return enumByDbName.TryGetValue(c.Name, out var enumName)
+                    ? nc with { EnumTypeName = enumName }
+                    : nc;
+            })
             .ToImmutableArray();
 
         NamedColumn? pk = null;
@@ -277,7 +301,8 @@ public sealed record NamedColumn(
     string ClrTypeWithNullability,
     bool IsNullable,
     bool IsIdentity,
-    int? MaxLength)
+    int? MaxLength,
+    string? EnumTypeName = null)
 {
     public static NamedColumn From(Column column)
     {
@@ -291,7 +316,8 @@ public sealed record NamedColumn(
             ClrTypeWithNullability: nullable,
             IsNullable: column.IsNullable,
             IsIdentity: column.IsIdentity,
-            MaxLength: column.MaxLength);
+            MaxLength: column.MaxLength,
+            EnumTypeName: null);
     }
 }
 

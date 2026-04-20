@@ -18,21 +18,36 @@ public sealed class LayeredLayout : ArchitectureLayoutBase
     {
         var api = Api(config); var bl = BusinessLogic(config); var da = DataAccess(config);
         var isDapper = config.DataAccess is DataAccessStyle.Dapper;
+        var isV2 = config.ApiVersion == ApiVersion.V2;
+        var shared = SharedProjectAssemblyName(config);
 
         var apiRefs = CsprojTemplates.ProjectReferencesBlock(
             $"../{bl}/{bl}.csproj", $"../{da}/{da}.csproj");
-        var blRefs = CsprojTemplates.ProjectReferencesBlock($"../{da}/{da}.csproj");
+        var blCsprojRefs = isV2
+            ? CsprojTemplates.ProjectReferencesBlock(
+                $"../{da}/{da}.csproj",
+                $"../{shared}/{shared}.csproj")
+            : CsprojTemplates.ProjectReferencesBlock($"../{da}/{da}.csproj");
 
-        return ImmutableArray.Create(
-            new ProjectDefinition(api, $"src/{api}/{api}.csproj",
-                CsprojTemplates.WebProject(config, api, api, apiRefs),
-                IsWebProject: true, ImmutableArray.Create(bl, da)),
-            new ProjectDefinition(bl, $"src/{bl}/{bl}.csproj",
-                CsprojTemplates.ClassLibrary(config, bl, bl, blRefs),
-                IsWebProject: false, ImmutableArray.Create(da)),
-            new ProjectDefinition(da, $"src/{da}/{da}.csproj",
-                CsprojTemplates.ClassLibrary(config, da, da, string.Empty, withEfCore: !isDapper, withDapper: isDapper),
-                IsWebProject: false, ImmutableArray<string>.Empty));
+        var blAssemblyRefs = isV2
+            ? ImmutableArray.Create(da, shared)
+            : ImmutableArray.Create(da);
+
+        var builder = ImmutableArray.CreateBuilder<ProjectDefinition>();
+        builder.Add(new ProjectDefinition(api, $"src/{api}/{api}.csproj",
+            CsprojTemplates.WebProject(config, api, api, apiRefs),
+            IsWebProject: true, ImmutableArray.Create(bl, da)));
+        builder.Add(new ProjectDefinition(bl, $"src/{bl}/{bl}.csproj",
+            CsprojTemplates.ClassLibrary(config, bl, bl, blCsprojRefs),
+            IsWebProject: false, blAssemblyRefs));
+        builder.Add(new ProjectDefinition(da, $"src/{da}/{da}.csproj",
+            CsprojTemplates.ClassLibrary(config, da, da, string.Empty, withEfCore: !isDapper, withDapper: isDapper),
+            IsWebProject: false, ImmutableArray<string>.Empty));
+        if (isV2)
+        {
+            builder.Add(SharedProject(config));
+        }
+        return builder.ToImmutable();
     }
 
     public override string EntityPath(ApiSmithConfig c, string schema, string name)    => $"src/{DataAccess(c)}/Entities{SchemaFolderSegment(c, schema)}/{name}.cs";
@@ -41,13 +56,19 @@ public sealed class LayeredLayout : ArchitectureLayoutBase
     public override string ConnectionFactoryPath(ApiSmithConfig c)                      => $"src/{DataAccess(c)}/DbConnectionFactory.cs";
     public override string DispatcherPath(ApiSmithConfig c)                             => $"src/{Api(c)}/Shared/Dispatcher.cs";
 
-    public override string DtoPath(ApiSmithConfig c, string schema, string fileName)   => $"src/{BusinessLogic(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
+    public override string DtoPath(ApiSmithConfig c, string schema, string fileName) =>
+        c.ApiVersion == ApiVersion.V2
+            ? $"{SharedProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs"
+            : $"src/{BusinessLogic(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
     public override string ValidatorPath(ApiSmithConfig c, string schema, string name) => $"src/{BusinessLogic(c)}/Validators{SchemaFolderSegment(c, schema)}/{name}DtoValidators.cs";
     public override string ValidationCorePath(ApiSmithConfig c)                         => $"src/{BusinessLogic(c)}/Validators/ValidationResult.cs";
     public override string MapperPath(ApiSmithConfig c, string schema, string name)    => $"src/{BusinessLogic(c)}/Mappings{SchemaFolderSegment(c, schema)}/{name}Mappings.cs";
 
     public override string EntityNamespace(ApiSmithConfig c, string schema)    => $"{DataAccess(c)}.Entities{SchemaNamespaceSegment(c, schema)}";
-    public override string DtoNamespace(ApiSmithConfig c, string schema)       => $"{BusinessLogic(c)}.Dtos{SchemaNamespaceSegment(c, schema)}";
+    public override string DtoNamespace(ApiSmithConfig c, string schema) =>
+        c.ApiVersion == ApiVersion.V2
+            ? $"{SharedNamespace(c)}.Dtos{SchemaNamespaceSegment(c, schema)}"
+            : $"{BusinessLogic(c)}.Dtos{SchemaNamespaceSegment(c, schema)}";
     public override string ValidatorNamespace(ApiSmithConfig c, string schema) => $"{BusinessLogic(c)}.Validators{SchemaNamespaceSegment(c, schema)}";
     public override string MapperNamespace(ApiSmithConfig c, string schema)    => $"{BusinessLogic(c)}.Mappings{SchemaNamespaceSegment(c, schema)}";
     public override string ValidatorCoreNamespace(ApiSmithConfig c)            => $"{BusinessLogic(c)}.Validators";

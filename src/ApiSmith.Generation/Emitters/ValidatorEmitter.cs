@@ -14,6 +14,10 @@ public static class ValidatorEmitter
     {
         var sb = new StringBuilder();
         sb.AppendLine($"using {layout.DtoNamespace(config, table.Schema)};");
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            sb.AppendLine($"using {layout.SharedErrorsNamespace(config)};");
+        }
         sb.AppendLine();
         sb.AppendLine($"namespace {layout.ValidatorNamespace(config, table.Schema)};");
         sb.AppendLine();
@@ -27,7 +31,7 @@ public static class ValidatorEmitter
 
     private static void EmitValidator(StringBuilder sb, ApiSmithConfig config, NamedTable table, string dtoName, string validatorName)
     {
-        sb.AppendLine($"public sealed class {validatorName}");
+        sb.AppendLine($"public sealed partial class {validatorName} : IValidator<{dtoName}>");
         sb.AppendLine("{");
         sb.AppendLine($"    public ValidationResult Validate({dtoName} dto)");
         sb.AppendLine("    {");
@@ -97,8 +101,11 @@ public static class ValidatorEmitter
         }
 
         sb.AppendLine();
+        sb.AppendLine("        ExtendValidate(dto, result);");
         sb.AppendLine("        return result;");
         sb.AppendLine("    }");
+        sb.AppendLine();
+        sb.AppendLine($"    partial void ExtendValidate({dtoName} dto, ValidationResult result);");
         sb.AppendLine("}");
     }
 

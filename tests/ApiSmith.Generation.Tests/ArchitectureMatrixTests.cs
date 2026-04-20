@@ -68,26 +68,89 @@ public sealed class ArchitectureMatrixTests
         try
         {
             new Generator(new NullLog()).Generate(config, SchemaGraphFixtures.Relational(), output);
-
-            var psi = new ProcessStartInfo("dotnet", $"build \"{output}\" --nologo -clp:NoSummary")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-            };
-
-            using var proc = Process.Start(psi)!;
-            var stdout = proc.StandardOutput.ReadToEnd();
-            var stderr = proc.StandardError.ReadToEnd();
-            proc.WaitForExit();
-
-            Assert.True(
-                proc.ExitCode == 0,
-                $"{style} solution failed to build. exit={proc.ExitCode}\n{stdout}\n{stderr}");
+            AssertCompiles(output, style.ToString());
         }
         finally
         {
-            try { if (Directory.Exists(output)) Directory.Delete(output, recursive: true); } catch { /* ignore */ }
+            CleanupBestEffort(output);
+        }
+    }
+
+    [Theory]
+    [InlineData(ArchitectureStyle.Flat)]
+    [InlineData(ArchitectureStyle.Clean)]
+    [InlineData(ArchitectureStyle.Layered)]
+    [InlineData(ArchitectureStyle.Onion)]
+    [InlineData(ArchitectureStyle.VerticalSlice)]
+    public void V2_generated_solution_compiles(ArchitectureStyle arch)
+    {
+        if (System.Environment.GetEnvironmentVariable("APISMITH_SKIP_NESTED_BUILD") is { Length: > 0 })
+        {
+            return;
+        }
+
+        var (config, output) = Setup($"V2{arch}");
+        config.ApiVersion = ApiVersion.V2;
+        config.Architecture = arch;
+        var graph = SchemaGraphFixtures.SmallBlog();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            AssertCompiles(output, $"V2-{arch}");
+        }
+        finally
+        {
+            CleanupBestEffort(output);
+        }
+    }
+
+    private static (ApiSmithConfig Config, string Output) Setup(string projectName)
+    {
+        var output = Path.Combine(
+            Path.GetTempPath(),
+            "apismith-tests",
+            projectName + "-" + System.Guid.NewGuid().ToString("N")[..8]);
+        var config = new ApiSmithConfig
+        {
+            ProjectName = projectName.Replace("-", ""),
+            OutputDirectory = output,
+            ConnectionString = "Server=x;Database=x;Trusted_Connection=True;",
+        };
+        return (config, output);
+    }
+
+    private static void AssertCompiles(string output, string label)
+    {
+        var psi = new ProcessStartInfo("dotnet", $"build \"{output}\" --nologo -clp:NoSummary")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        using var proc = Process.Start(psi)!;
+        var stdout = proc.StandardOutput.ReadToEnd();
+        var stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        Assert.True(
+            proc.ExitCode == 0,
+            $"{label} solution failed to build. exit={proc.ExitCode}\n{stdout}\n{stderr}");
+    }
+
+    private static void CleanupBestEffort(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch
+        {
+            // ignore
         }
     }
 

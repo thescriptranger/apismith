@@ -71,4 +71,12 @@ public interface IArchitectureLayout
 
     /// <summary>API host folder, e.g. <c>src/MyApi.Api</c>.</summary>
     string ApiProjectFolder(ApiSmithConfig config);
+
+    // Shared contracts project (apiVersion: v2). Under v1 these still produce values,
+    // but the generator won't invoke the Shared emitters.
+    string SharedProjectAssemblyName(ApiSmithConfig config);
+    string SharedProjectFolder(ApiSmithConfig config);
+    string SharedNamespace(ApiSmithConfig config);
+    string SharedErrorsNamespace(ApiSmithConfig config);
+    ProjectDefinition SharedProject(ApiSmithConfig config);
 }

@@ -94,6 +94,40 @@ internal static class SchemaGraphFixtures
             System.Array.Empty<DbFunction>());
     }
 
+    /// <summary>Same tables as <see cref="Relational"/> plus an orders table with a translatable CHECK on total_cents &gt;= 0.</summary>
+    public static SchemaGraph RelationalWithCheck()
+    {
+        var users = Table.Create("dbo", "users",
+            new[]
+            {
+                new Column("id",    1, "int",      IsNullable: false, IsIdentity: true,  IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+                new Column("email", 2, "nvarchar", IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: 256,  Precision: null, Scale: null, DefaultValue: null),
+            },
+            PrimaryKey.Create("PK_users", new[] { "id" }));
+
+        var orders = Table.Create("dbo", "orders",
+            columns: new[]
+            {
+                new Column("id",          1, "int",    IsNullable: false, IsIdentity: true,  IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+                new Column("user_id",     2, "int",    IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+                new Column("total_cents", 3, "bigint", IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+            },
+            primaryKey: PrimaryKey.Create("PK_orders", new[] { "id" }),
+            checkConstraints: new[] { new CheckConstraint("CK_orders_total_nonneg", "([total_cents] >= 0)") });
+
+        var fks = new[]
+        {
+            ForeignKey.Create("FK_orders_users", "dbo", "orders", new[] { "user_id" }, "dbo", "users", new[] { "id" }),
+        };
+
+        return SqlServerSchemaReader.BuildGraph(
+            new[] { users, orders },
+            fks,
+            System.Array.Empty<View>(),
+            System.Array.Empty<StoredProcedure>(),
+            System.Array.Empty<DbFunction>());
+    }
+
     /// <summary>audit.user_actions FK → dbo.users; drives the multi-schema folder/namespace test.</summary>
     public static SchemaGraph CrossSchema()
     {

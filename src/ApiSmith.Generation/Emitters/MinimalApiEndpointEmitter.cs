@@ -40,6 +40,13 @@ public static class MinimalApiEndpointEmitter
         usings.Add(entityNs);
         usings.Add(mapperNs);
         usings.Add(validatorNs);
+        // IValidator<TDto> lives in the unsegmented validator core namespace; match ValidationResult.cs.
+        usings.Add(layout.ValidatorCoreNamespace(config));
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            usings.Add("System.Collections.Immutable");
+            usings.Add(layout.SharedErrorsNamespace(config));
+        }
 
         var sb = new StringBuilder();
         foreach (var u in usings.OrderBy(u => u, System.StringComparer.Ordinal))
@@ -54,12 +61,17 @@ public static class MinimalApiEndpointEmitter
         sb.AppendLine($"    public static IEndpointRouteBuilder Map{collection}Endpoints(this IEndpointRouteBuilder app)");
         sb.AppendLine("    {");
         sb.AppendLine($"        var group = app.MapGroup(\"{VersioningEmitter.MinimalApiGroupPrefix(config)}/{route}\");");
+        if (config.Auth != AuthStyle.None)
+        {
+            sb.AppendLine("        group.RequireAuthorization();");
+        }
         sb.AppendLine();
 
+        var listRepoType = config.EmitRepositoryInterfaces ? $"I{entity}Repository" : $"{entity}Repository";
         if (table.PrimaryKey is null)
         {
             sb.AppendLine("        // No primary key discovered — read-only list endpoint only.");
-            EmitListHandler(sb, config, table, dbset);
+            EmitListHandler(sb, config, table, dbset, listRepoType);
             sb.AppendLine();
             sb.AppendLine("        return app;");
             sb.AppendLine("    }");
@@ -69,9 +81,9 @@ public static class MinimalApiEndpointEmitter
 
         var pk = table.PrimaryKey;
         var dbCtx = $"{config.ProjectName}DbContext";
-        var repoType = $"{entity}Repository";
+        var repoType = config.EmitRepositoryInterfaces ? $"I{entity}Repository" : $"{entity}Repository";
 
-        if ((crud & CrudOperations.GetList) != 0) EmitListHandler(sb, config, table, dbset);
+        if ((crud & CrudOperations.GetList) != 0) EmitListHandler(sb, config, table, dbset, listRepoType);
         if ((crud & CrudOperations.GetById) != 0) EmitGetByIdHandler(sb, config, table, pk, dbCtx, repoType, dbset);
         if ((crud & CrudOperations.Post) != 0)    EmitCreateHandler(sb, config, table, pk, dbCtx, repoType, dbset);
         if ((crud & CrudOperations.Put) != 0)     EmitUpdateHandler(sb, config, table, pk, dbCtx, repoType, "MapPut", "Update", dbset);
@@ -86,7 +98,7 @@ public static class MinimalApiEndpointEmitter
         return new EmittedFile(layout.MinimalApiEndpointPath(config, collection), sb.ToString());
     }
 
-    private static void EmitListHandler(StringBuilder sb, ApiSmithConfig config, NamedTable table, string dbset)
+    private static void EmitListHandler(StringBuilder sb, ApiSmithConfig config, NamedTable table, string dbset, string repoType)
     {
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
@@ -100,7 +112,7 @@ public static class MinimalApiEndpointEmitter
         }
         else
         {
-            sb.AppendLine($"        group.MapGet(\"/\", async ({table.EntityName}Repository repo, CancellationToken ct) =>");
+            sb.AppendLine($"        group.MapGet(\"/\", async ({repoType} repo, CancellationToken ct) =>");
             sb.AppendLine("        {");
             sb.AppendLine("            var items = await repo.ListAsync(ct).ConfigureAwait(false);");
             sb.AppendLine("            return Results.Ok(items.Select(e => e.ToDto()).ToList());");
@@ -136,11 +148,10 @@ public static class MinimalApiEndpointEmitter
         sb.AppendLine();
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
-            sb.AppendLine($"        group.MapPost(\"/\", async (Create{table.EntityName}Dto dto, {dbCtx} db, CancellationToken ct) =>");
+            sb.AppendLine($"        group.MapPost(\"/\", async (Create{table.EntityName}Dto dto, {dbCtx} db, IValidator<Create{table.EntityName}Dto> validator, CancellationToken ct) =>");
             sb.AppendLine("        {");
-            sb.AppendLine($"            var validator = new Create{table.EntityName}DtoValidator();");
             sb.AppendLine("            var validation = validator.Validate(dto);");
-            sb.AppendLine("            if (!validation.IsValid) { return Results.BadRequest(validation.Errors); }");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
             sb.AppendLine();
             sb.AppendLine("            var entity = dto.ToEntity();");
             sb.AppendLine($"            db.{dbset}.Add(entity);");
@@ -150,11 +161,10 @@ public static class MinimalApiEndpointEmitter
         }
         else
         {
-            sb.AppendLine($"        group.MapPost(\"/\", async (Create{table.EntityName}Dto dto, {repoType} repo, CancellationToken ct) =>");
+            sb.AppendLine($"        group.MapPost(\"/\", async (Create{table.EntityName}Dto dto, {repoType} repo, IValidator<Create{table.EntityName}Dto> validator, CancellationToken ct) =>");
             sb.AppendLine("        {");
-            sb.AppendLine($"            var validator = new Create{table.EntityName}DtoValidator();");
             sb.AppendLine("            var validation = validator.Validate(dto);");
-            sb.AppendLine("            if (!validation.IsValid) { return Results.BadRequest(validation.Errors); }");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
             sb.AppendLine();
             sb.AppendLine("            var entity = await repo.CreateAsync(dto.ToEntity(), ct).ConfigureAwait(false);");
             sb.AppendLine($"            return Results.Created($\"{VersioningEmitter.MinimalApiGroupPrefix(config)}/{table.RouteSegment}/{{entity.{pk.PropertyName}}}\", entity.ToDto());");
@@ -167,11 +177,10 @@ public static class MinimalApiEndpointEmitter
         sb.AppendLine();
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
-            sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{table.EntityName}Dto dto, {dbCtx} db, CancellationToken ct) =>");
+            sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{table.EntityName}Dto dto, {dbCtx} db, IValidator<Update{table.EntityName}Dto> validator, CancellationToken ct) =>");
             sb.AppendLine("        {");
-            sb.AppendLine($"            var validator = new Update{table.EntityName}DtoValidator();");
             sb.AppendLine("            var validation = validator.Validate(dto);");
-            sb.AppendLine("            if (!validation.IsValid) { return Results.BadRequest(validation.Errors); }");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
             sb.AppendLine();
             sb.AppendLine($"            var entity = await db.{dbset}.FindAsync(new object[] {{ id }}, ct).ConfigureAwait(false);");
             sb.AppendLine("            if (entity is null) { return Results.NotFound(); }");
@@ -182,11 +191,10 @@ public static class MinimalApiEndpointEmitter
         }
         else
         {
-            sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{table.EntityName}Dto dto, {repoType} repo, CancellationToken ct) =>");
+            sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{table.EntityName}Dto dto, {repoType} repo, IValidator<Update{table.EntityName}Dto> validator, CancellationToken ct) =>");
             sb.AppendLine("        {");
-            sb.AppendLine($"            var validator = new Update{table.EntityName}DtoValidator();");
             sb.AppendLine("            var validation = validator.Validate(dto);");
-            sb.AppendLine("            if (!validation.IsValid) { return Results.BadRequest(validation.Errors); }");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
             sb.AppendLine();
             sb.AppendLine("            var entity = await repo.GetByIdAsync(id, ct).ConfigureAwait(false);");
             sb.AppendLine("            if (entity is null) { return Results.NotFound(); }");
@@ -194,6 +202,18 @@ public static class MinimalApiEndpointEmitter
             sb.AppendLine("            await repo.UpdateAsync(entity, ct).ConfigureAwait(false);");
             sb.AppendLine("            return Results.NoContent();");
             sb.AppendLine("        });");
+        }
+    }
+
+    private static void AppendBadRequestIfInvalid(StringBuilder sb, ApiSmithConfig config, string indent)
+    {
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            sb.AppendLine($"{indent}if (!validation.IsValid) {{ return Results.BadRequest(new ApiProblem(\"Validation failed\", 400, \"https://apismith.dev/problems/validation\", validation.Errors.ToImmutableArray())); }}");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}if (!validation.IsValid) {{ return Results.BadRequest(validation.Errors); }}");
         }
     }
 

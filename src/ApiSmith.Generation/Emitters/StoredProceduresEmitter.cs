@@ -20,11 +20,54 @@ public static class StoredProceduresEmitter
         }
 
         var dataNs = layout.DataNamespace(config);
-        var sprocs_folder = $"{System.IO.Path.GetDirectoryName(layout.ConnectionFactoryPath(config))!.Replace('\\', '/')}";
+        var sprocsFolder = System.IO.Path.GetDirectoryName(layout.ConnectionFactoryPath(config))!.Replace('\\', '/');
         var targetDir = config.DataAccess is DataAccessStyle.EfCore
             ? System.IO.Path.GetDirectoryName(layout.DbContextPath(config))!.Replace('\\', '/')
-            : sprocs_folder;
+            : sprocsFolder;
 
+        if (config.PartitionStoredProceduresBySchema)
+        {
+            var bySchema = sprocs
+                .GroupBy(sp => sp.Schema, System.StringComparer.Ordinal)
+                .OrderBy(g => g.Key, System.StringComparer.Ordinal);
+
+            foreach (var group in bySchema)
+            {
+                var schemaPascal = Casing.ToPascal(group.Key);
+                var interfaceName = $"I{schemaPascal}StoredProcedures";
+                var implClass = $"{schemaPascal}StoredProcedures";
+                var content = BuildFileContent(
+                    config,
+                    dataNs,
+                    interfaceName,
+                    implClass,
+                    group.ToList(),
+                    log);
+                yield return new EmittedFile($"{targetDir}/{schemaPascal}StoredProcedures.cs", content);
+            }
+        }
+        else
+        {
+            var implClass = $"{config.ProjectName}StoredProcedures";
+            var content = BuildFileContent(
+                config,
+                dataNs,
+                "IStoredProcedures",
+                implClass,
+                sprocs,
+                log);
+            yield return new EmittedFile($"{targetDir}/StoredProcedures.cs", content);
+        }
+    }
+
+    private static string BuildFileContent(
+        ApiSmithConfig config,
+        string dataNs,
+        string interfaceName,
+        string implClass,
+        IReadOnlyList<StoredProcedure> sprocs,
+        IScaffoldLog log)
+    {
         var sb = new StringBuilder();
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Threading;");
@@ -41,7 +84,7 @@ public static class StoredProceduresEmitter
         sb.AppendLine($"namespace {dataNs};");
         sb.AppendLine();
 
-        sb.AppendLine("public interface IStoredProcedures");
+        sb.AppendLine($"public interface {interfaceName}");
         sb.AppendLine("{");
         foreach (var sp in sprocs)
         {
@@ -78,8 +121,7 @@ public static class StoredProceduresEmitter
         }
         sb.AppendLine();
 
-        var implClass = $"{config.ProjectName}StoredProcedures";
-        sb.AppendLine($"public sealed class {implClass} : IStoredProcedures");
+        sb.AppendLine($"public sealed class {implClass} : {interfaceName}");
         sb.AppendLine("{");
 
         if (config.DataAccess is DataAccessStyle.Dapper)
@@ -147,7 +189,7 @@ public static class StoredProceduresEmitter
 
         sb.AppendLine("}");
 
-        yield return new EmittedFile($"{targetDir}/StoredProcedures.cs", sb.ToString());
+        return sb.ToString();
     }
 
     private static string ResultTypeName(StoredProcedure sp) => $"{Casing.ToPascal(sp.Name)}Result";

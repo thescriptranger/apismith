@@ -113,6 +113,12 @@ BlogApi/
 
 Every emitted project sets `TreatWarningsAsErrors=true` and `Nullable=enable`. If the generated code trips a warning, that's a bug.
 
+## Shared contracts project
+
+New scaffolds default to `apiVersion: v2`, which emits a `<Name>.Shared` class-library project alongside the server. It holds DTOs (with DataAnnotations attributes), C# enums derived from `CHECK IN` constraints, and typed error responses (`ValidationError`, `ApiProblem`). BCL-only — no `Microsoft.AspNetCore.*` dependency — so it packs cleanly as a NuGet for pure-console clients.
+
+Existing configs stay on `apiVersion: v1` (no Shared project, DTOs in the server assembly). To adopt v2 on an existing scaffold, edit the `apismith.yaml` line to `apiVersion: v2` and rerun.
+
 ## Architectures
 
 Same inputs, different folder structure. Pick the one your team uses.
@@ -351,7 +357,6 @@ PostgreSQL, MySQL, SQLite — roadmap.
 
 ## Roadmap
 
-- **`.Shared` contracts project** (`apiVersion: v2`) — DTOs with DataAnnotations, typed error responses, enums from CHECK IN lists. Designed; see `docs/superpowers/specs/2026-04-20-shared-project-design.md`. Implementation next.
 - PostgreSQL.
 - Re-generation with merge/diff. (Currently scaffold-once.)
 - gRPC and GraphQL endpoints.

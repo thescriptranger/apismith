@@ -159,6 +159,33 @@ internal static class CsprojTemplates
             """;
     }
 
+    public static string SharedClassLibrary(ApiSmithConfig config) => $"""
+        <Project Sdk="Microsoft.NET.Sdk">
+
+          <PropertyGroup>
+            <TargetFramework>{config.TargetFramework}</TargetFramework>
+            <LangVersion>latest</LangVersion>
+            <Nullable>enable</Nullable>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+            <WarningsAsErrors />
+            <NoWarn>$(NoWarn);CS1591</NoWarn>
+            <IsPackable>true</IsPackable>
+            <PackageId>{config.ProjectName}.Shared</PackageId>
+            <Version>1.0.0</Version>
+            <Description>API contracts for {config.ProjectName}.</Description>
+            <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+            <!-- Optional: fill in before publishing -->
+            <!-- <PackageProjectUrl>https://github.com/org/repo</PackageProjectUrl> -->
+            <!-- <PackageLicenseExpression>MIT</PackageLicenseExpression> -->
+            <!-- <RepositoryUrl>https://github.com/org/repo.git</RepositoryUrl> -->
+            <!-- <Authors>Your Name</Authors> -->
+            <!-- <Company>Your Company</Company> -->
+          </PropertyGroup>
+
+        </Project>
+        """;
+
     public static string ProjectReferencesBlock(params string[] relativePaths)
     {
         if (relativePaths.Length == 0)

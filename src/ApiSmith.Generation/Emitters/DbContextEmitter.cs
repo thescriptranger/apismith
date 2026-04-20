@@ -22,7 +22,7 @@ public static class DbContextEmitter
         sb.AppendLine();
         sb.AppendLine($"namespace {layout.DataNamespace(config)};");
         sb.AppendLine();
-        sb.AppendLine($"public sealed class {config.ProjectName}DbContext : DbContext");
+        sb.AppendLine($"public sealed partial class {config.ProjectName}DbContext : DbContext");
         sb.AppendLine("{");
         sb.AppendLine($"    public {config.ProjectName}DbContext(DbContextOptions<{config.ProjectName}DbContext> options) : base(options)");
         sb.AppendLine("    {");

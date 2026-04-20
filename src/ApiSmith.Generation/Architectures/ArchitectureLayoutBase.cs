@@ -119,4 +119,21 @@ public abstract class ArchitectureLayoutBase : IArchitectureLayout
     public string TestsNamespace(ApiSmithConfig c) => $"{c.ProjectName}.IntegrationTests";
 
     public abstract string LayoutDescription(ApiSmithConfig config);
+
+    public virtual string SharedProjectAssemblyName(ApiSmithConfig c) => $"{c.ProjectName}.Shared";
+    public virtual string SharedProjectFolder(ApiSmithConfig c) => $"src/{c.ProjectName}.Shared";
+    public virtual string SharedNamespace(ApiSmithConfig c) => $"{c.ProjectName}.Shared";
+    public virtual string SharedErrorsNamespace(ApiSmithConfig c) => $"{c.ProjectName}.Shared.Errors";
+
+    public virtual ProjectDefinition SharedProject(ApiSmithConfig config)
+    {
+        var name = SharedProjectAssemblyName(config);
+        var csproj = CsprojTemplates.SharedClassLibrary(config);
+        return new ProjectDefinition(
+            AssemblyName: name,
+            RelativeCsprojPath: $"{SharedProjectFolder(config)}/{name}.csproj",
+            CsprojContent: csproj,
+            IsWebProject: false,
+            ReferencedAssemblies: ImmutableArray<string>.Empty);
+    }
 }

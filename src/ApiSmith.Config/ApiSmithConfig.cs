@@ -28,6 +28,9 @@ public sealed class ApiSmithConfig
     /// <summary>sln, csproj, root namespace.</summary>
     public string ProjectName { get; set; } = "MyApi";
 
+    /// <summary>Schema version of apismith.yaml. Missing field defaults to V1.</summary>
+    public ApiVersion ApiVersion { get; set; } = ApiVersion.V1;
+
     /// <summary>Relative paths resolve against cwd.</summary>
     public string OutputDirectory { get; set; } = "./MyApi";
 
@@ -60,4 +63,10 @@ public sealed class ApiSmithConfig
 
     /// <summary>Opt-in: emit FK-not-default checks in DTO validators with a TODO stub for existence verification.</summary>
     public bool ValidateForeignKeyReferences { get; set; } = false;
+
+    /// <summary>When true (and DataAccess=Dapper), emits an I&lt;Entity&gt;Repository interface per entity and binds it in DI.</summary>
+    public bool EmitRepositoryInterfaces { get; set; } = false;
+
+    /// <summary>When true, emits I&lt;Schema&gt;StoredProcedures / I&lt;Schema&gt;DbFunctions per schema instead of one fat interface.</summary>
+    public bool PartitionStoredProceduresBySchema { get; set; } = false;
 }

@@ -114,6 +114,14 @@ public static class YamlReader
     {
         switch (key)
         {
+            case "apiVersion":
+                config.ApiVersion = value switch
+                {
+                    "v1" => ApiVersion.V1,
+                    "v2" => ApiVersion.V2,
+                    _ => throw new YamlException($"Unknown apiVersion '{value}'. Supported values: v1, v2."),
+                };
+                break;
             case "projectName":
                 config.ProjectName = value;
                 break;
@@ -149,6 +157,12 @@ public static class YamlReader
                 break;
             case "validateForeignKeyReferences":
                 config.ValidateForeignKeyReferences = ParseBool(key, value);
+                break;
+            case "emitRepositoryInterfaces":
+                config.EmitRepositoryInterfaces = ParseBool(key, value);
+                break;
+            case "partitionStoredProceduresBySchema":
+                config.PartitionStoredProceduresBySchema = ParseBool(key, value);
                 break;
             case "crud":
                 throw new YamlException("'crud' must be a list.");

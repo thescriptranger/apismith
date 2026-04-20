@@ -14,16 +14,30 @@ public sealed class VerticalSliceLayout : ArchitectureLayoutBase
     public override ImmutableArray<ProjectDefinition> Projects(ApiSmithConfig config)
     {
         var name = ApiProjectAssemblyName(config);
+        var sharedAsm = SharedProjectAssemblyName(config);
+        var projectRefsBlock = config.ApiVersion == ApiVersion.V2
+            ? CsprojTemplates.ProjectReferencesBlock($"../{sharedAsm}/{sharedAsm}.csproj")
+            : string.Empty;
         var csproj = config.DataAccess is DataAccessStyle.EfCore
-            ? CsprojTemplates.WebProjectWithEfCore(config, name, name, string.Empty)
-            : CsprojTemplates.WebProjectWithDapper(config, name, name, string.Empty);
+            ? CsprojTemplates.WebProjectWithEfCore(config, name, name, projectRefsBlock)
+            : CsprojTemplates.WebProjectWithDapper(config, name, name, projectRefsBlock);
 
-        return ImmutableArray.Create(new ProjectDefinition(
+        var apiRefs = config.ApiVersion == ApiVersion.V2
+            ? ImmutableArray.Create(sharedAsm)
+            : ImmutableArray<string>.Empty;
+
+        var builder = ImmutableArray.CreateBuilder<ProjectDefinition>();
+        builder.Add(new ProjectDefinition(
             AssemblyName: name,
             RelativeCsprojPath: $"{ApiProjectFolder(config)}/{name}.csproj",
             CsprojContent: csproj,
             IsWebProject: true,
-            ReferencedAssemblies: ImmutableArray<string>.Empty));
+            ReferencedAssemblies: apiRefs));
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            builder.Add(SharedProject(config));
+        }
+        return builder.ToImmutable();
     }
 
     public override string EntityPath(ApiSmithConfig c, string schema, string entityName) =>
@@ -31,6 +45,10 @@ public sealed class VerticalSliceLayout : ArchitectureLayoutBase
 
     public override string DtoPath(ApiSmithConfig c, string schema, string fileName)
     {
+        if (c.ApiVersion == ApiVersion.V2)
+        {
+            return $"{SharedProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
+        }
         var entity = fileName.EndsWith("Dtos", System.StringComparison.Ordinal) ? fileName[..^4] : fileName;
         return $"{ApiProjectFolder(c)}/Features/{Naming.Pluralizer.Pluralize(entity)}/{fileName}.cs";
     }
@@ -63,7 +81,10 @@ public sealed class VerticalSliceLayout : ArchitectureLayoutBase
         $"{ApiProjectFolder(c)}/Shared/Dispatcher.cs";
 
     public override string EntityNamespace(ApiSmithConfig c, string schema)    => $"{c.ProjectName}.Features";
-    public override string DtoNamespace(ApiSmithConfig c, string schema)       => $"{c.ProjectName}.Features";
+    public override string DtoNamespace(ApiSmithConfig c, string schema) =>
+        c.ApiVersion == ApiVersion.V2
+            ? $"{SharedNamespace(c)}.Dtos{SchemaNamespaceSegment(c, schema)}"
+            : $"{c.ProjectName}.Features";
     public override string ValidatorNamespace(ApiSmithConfig c, string schema) => $"{c.ProjectName}.Features";
     public override string MapperNamespace(ApiSmithConfig c, string schema)    => $"{c.ProjectName}.Features";
     public override string ValidatorCoreNamespace(ApiSmithConfig c)            => $"{c.ProjectName}.Features";

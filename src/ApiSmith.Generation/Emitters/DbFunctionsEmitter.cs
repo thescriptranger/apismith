@@ -24,6 +24,36 @@ public static class DbFunctionsEmitter
             ? System.IO.Path.GetDirectoryName(layout.DbContextPath(config))!.Replace('\\', '/')
             : System.IO.Path.GetDirectoryName(layout.ConnectionFactoryPath(config))!.Replace('\\', '/');
 
+        if (config.PartitionStoredProceduresBySchema)
+        {
+            var bySchema = functions
+                .GroupBy(fn => fn.Schema, System.StringComparer.Ordinal)
+                .OrderBy(g => g.Key, System.StringComparer.Ordinal);
+
+            foreach (var group in bySchema)
+            {
+                var schemaPascal = Casing.ToPascal(group.Key);
+                var interfaceName = $"I{schemaPascal}DbFunctions";
+                var implClass = $"{schemaPascal}DbFunctions";
+                var content = BuildFileContent(config, dataNs, interfaceName, implClass, group.ToList());
+                yield return new EmittedFile($"{targetDir}/{schemaPascal}DbFunctions.cs", content);
+            }
+        }
+        else
+        {
+            var implClass = $"{config.ProjectName}DbFunctions";
+            var content = BuildFileContent(config, dataNs, "IDbFunctions", implClass, functions);
+            yield return new EmittedFile($"{targetDir}/DbFunctions.cs", content);
+        }
+    }
+
+    private static string BuildFileContent(
+        ApiSmithConfig config,
+        string dataNs,
+        string interfaceName,
+        string implClass,
+        IReadOnlyList<DbFunction> functions)
+    {
         var sb = new StringBuilder();
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Threading;");
@@ -35,7 +65,7 @@ public static class DbFunctionsEmitter
         sb.AppendLine();
         sb.AppendLine($"namespace {dataNs};");
         sb.AppendLine();
-        sb.AppendLine("public interface IDbFunctions");
+        sb.AppendLine($"public interface {interfaceName}");
         sb.AppendLine("{");
         foreach (var fn in functions)
         {
@@ -49,9 +79,8 @@ public static class DbFunctionsEmitter
             sb.AppendLine($"public sealed record {Casing.ToPascal(fn.Name)}Result();");
         }
 
-        var implClass = $"{config.ProjectName}DbFunctions";
         sb.AppendLine();
-        sb.AppendLine($"public sealed class {implClass} : IDbFunctions");
+        sb.AppendLine($"public sealed class {implClass} : {interfaceName}");
         sb.AppendLine("{");
         foreach (var fn in functions)
         {
@@ -63,7 +92,7 @@ public static class DbFunctionsEmitter
         }
         sb.AppendLine("}");
 
-        yield return new EmittedFile($"{targetDir}/DbFunctions.cs", sb.ToString());
+        return sb.ToString();
     }
 
     private static string SignatureFor(DbFunction fn)

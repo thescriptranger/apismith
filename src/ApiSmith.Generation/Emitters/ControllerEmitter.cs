@@ -28,6 +28,8 @@ public static class ControllerEmitter
         var dbset = DbSetNaming.PropertyName(table, collidedEntityNames);
         var route = table.RouteSegment;
         var crud = config.Crud;
+        var injectCreate = (crud & CrudOperations.Post) != 0;
+        var injectUpdate = (crud & (CrudOperations.Put | CrudOperations.Patch)) != 0;
 
         var sb = new StringBuilder();
         EmitCommonUsings(sb, config, layout, table, efCore: true);
@@ -37,14 +39,23 @@ public static class ControllerEmitter
         sb.AppendLine();
         sb.AppendLine("[ApiController]");
         sb.AppendLine($"[Route(\"{VersioningEmitter.RoutePrefix(config)}/{route}\")]");
+        if (config.Auth != AuthStyle.None)
+        {
+            sb.AppendLine("[Authorize]");
+        }
         sb.AppendLine($"public sealed class {table.CollectionName}Controller : ControllerBase");
         sb.AppendLine("{");
         sb.AppendLine($"    private readonly {dbCtx} _db;");
+        if (injectCreate)
+        {
+            sb.AppendLine($"    private readonly IValidator<Create{entity}Dto> _createValidator;");
+        }
+        if (injectUpdate)
+        {
+            sb.AppendLine($"    private readonly IValidator<Update{entity}Dto> _updateValidator;");
+        }
         sb.AppendLine();
-        sb.AppendLine($"    public {table.CollectionName}Controller({dbCtx} db)");
-        sb.AppendLine("    {");
-        sb.AppendLine("        _db = db;");
-        sb.AppendLine("    }");
+        EmitControllerCtor(sb, table.CollectionName, $"{dbCtx} db", "        _db = db;", entity, injectCreate, injectUpdate);
 
         if ((crud & CrudOperations.GetList) != 0)
         {
@@ -77,9 +88,8 @@ public static class ControllerEmitter
             sb.AppendLine("    [HttpPost]");
             sb.AppendLine($"    public async Task<ActionResult<{entity}Dto>> Create(Create{entity}Dto dto, CancellationToken ct)");
             sb.AppendLine("    {");
-            sb.AppendLine($"        var validator = new Create{entity}DtoValidator();");
-            sb.AppendLine("        var validation = validator.Validate(dto);");
-            sb.AppendLine("        if (!validation.IsValid) { return BadRequest(validation.Errors); }");
+            sb.AppendLine("        var validation = _createValidator.Validate(dto);");
+            AppendBadRequestIfInvalid(sb, config, indent: "        ");
             sb.AppendLine();
             sb.AppendLine("        var entity = dto.ToEntity();");
             sb.AppendLine($"        _db.{dbset}.Add(entity);");
@@ -88,8 +98,8 @@ public static class ControllerEmitter
             sb.AppendLine("    }");
         }
 
-        if ((crud & CrudOperations.Put) != 0)    EmitEfUpdate(sb, "HttpPut", "Update", entity, dbset, pk);
-        if ((crud & CrudOperations.Patch) != 0)  EmitEfUpdate(sb, "HttpPatch", "Patch", entity, dbset, pk);
+        if ((crud & CrudOperations.Put) != 0)    EmitEfUpdate(sb, config, "HttpPut", "Update", entity, dbset, pk);
+        if ((crud & CrudOperations.Patch) != 0)  EmitEfUpdate(sb, config, "HttpPatch", "Patch", entity, dbset, pk);
 
         if ((crud & CrudOperations.Delete) != 0)
         {
@@ -109,15 +119,14 @@ public static class ControllerEmitter
         return new EmittedFile(layout.ControllerPath(config, table.CollectionName), sb.ToString());
     }
 
-    private static void EmitEfUpdate(StringBuilder sb, string verb, string actionName, string entity, string dbset, NamedColumn pk)
+    private static void EmitEfUpdate(StringBuilder sb, ApiSmithConfig config, string verb, string actionName, string entity, string dbset, NamedColumn pk)
     {
         sb.AppendLine();
         sb.AppendLine($"    [{verb}(\"{{id}}\")]");
         sb.AppendLine($"    public async Task<IActionResult> {actionName}({pk.ClrTypeName} id, Update{entity}Dto dto, CancellationToken ct)");
         sb.AppendLine("    {");
-        sb.AppendLine($"        var validator = new Update{entity}DtoValidator();");
-        sb.AppendLine("        var validation = validator.Validate(dto);");
-        sb.AppendLine("        if (!validation.IsValid) { return BadRequest(validation.Errors); }");
+        sb.AppendLine("        var validation = _updateValidator.Validate(dto);");
+        AppendBadRequestIfInvalid(sb, config, indent: "        ");
         sb.AppendLine();
         sb.AppendLine($"        var entity = await _db.{dbset}.FindAsync(new object[] {{ id }}, ct).ConfigureAwait(false);");
         sb.AppendLine("        if (entity is null) { return NotFound(); }");
@@ -132,8 +141,10 @@ public static class ControllerEmitter
         var pk = table.PrimaryKey!;
         var entity = table.EntityName;
         var route = table.RouteSegment;
-        var repoType = $"{entity}Repository";
+        var repoType = config.EmitRepositoryInterfaces ? $"I{entity}Repository" : $"{entity}Repository";
         var crud = config.Crud;
+        var injectCreate = (crud & CrudOperations.Post) != 0;
+        var injectUpdate = (crud & (CrudOperations.Put | CrudOperations.Patch)) != 0;
 
         var sb = new StringBuilder();
         EmitCommonUsings(sb, config, layout, table, efCore: false);
@@ -143,14 +154,23 @@ public static class ControllerEmitter
         sb.AppendLine();
         sb.AppendLine("[ApiController]");
         sb.AppendLine($"[Route(\"{VersioningEmitter.RoutePrefix(config)}/{route}\")]");
+        if (config.Auth != AuthStyle.None)
+        {
+            sb.AppendLine("[Authorize]");
+        }
         sb.AppendLine($"public sealed class {table.CollectionName}Controller : ControllerBase");
         sb.AppendLine("{");
         sb.AppendLine($"    private readonly {repoType} _repo;");
+        if (injectCreate)
+        {
+            sb.AppendLine($"    private readonly IValidator<Create{entity}Dto> _createValidator;");
+        }
+        if (injectUpdate)
+        {
+            sb.AppendLine($"    private readonly IValidator<Update{entity}Dto> _updateValidator;");
+        }
         sb.AppendLine();
-        sb.AppendLine($"    public {table.CollectionName}Controller({repoType} repo)");
-        sb.AppendLine("    {");
-        sb.AppendLine("        _repo = repo;");
-        sb.AppendLine("    }");
+        EmitControllerCtor(sb, table.CollectionName, $"{repoType} repo", "        _repo = repo;", entity, injectCreate, injectUpdate);
 
         if ((crud & CrudOperations.GetList) != 0)
         {
@@ -180,17 +200,16 @@ public static class ControllerEmitter
             sb.AppendLine("    [HttpPost]");
             sb.AppendLine($"    public async Task<ActionResult<{entity}Dto>> Create(Create{entity}Dto dto, CancellationToken ct)");
             sb.AppendLine("    {");
-            sb.AppendLine($"        var validator = new Create{entity}DtoValidator();");
-            sb.AppendLine("        var validation = validator.Validate(dto);");
-            sb.AppendLine("        if (!validation.IsValid) { return BadRequest(validation.Errors); }");
+            sb.AppendLine("        var validation = _createValidator.Validate(dto);");
+            AppendBadRequestIfInvalid(sb, config, indent: "        ");
             sb.AppendLine();
             sb.AppendLine("        var entity = await _repo.CreateAsync(dto.ToEntity(), ct).ConfigureAwait(false);");
             sb.AppendLine($"        return CreatedAtAction(nameof(GetById), new {{ id = entity.{pk.PropertyName} }}, entity.ToDto());");
             sb.AppendLine("    }");
         }
 
-        if ((crud & CrudOperations.Put) != 0)    EmitDapperUpdate(sb, "HttpPut", "Update", entity, pk);
-        if ((crud & CrudOperations.Patch) != 0)  EmitDapperUpdate(sb, "HttpPatch", "Patch", entity, pk);
+        if ((crud & CrudOperations.Put) != 0)    EmitDapperUpdate(sb, config, "HttpPut", "Update", entity, pk);
+        if ((crud & CrudOperations.Patch) != 0)  EmitDapperUpdate(sb, config, "HttpPatch", "Patch", entity, pk);
 
         if ((crud & CrudOperations.Delete) != 0)
         {
@@ -207,15 +226,14 @@ public static class ControllerEmitter
         return new EmittedFile(layout.ControllerPath(config, table.CollectionName), sb.ToString());
     }
 
-    private static void EmitDapperUpdate(StringBuilder sb, string verb, string actionName, string entity, NamedColumn pk)
+    private static void EmitDapperUpdate(StringBuilder sb, ApiSmithConfig config, string verb, string actionName, string entity, NamedColumn pk)
     {
         sb.AppendLine();
         sb.AppendLine($"    [{verb}(\"{{id}}\")]");
         sb.AppendLine($"    public async Task<IActionResult> {actionName}({pk.ClrTypeName} id, Update{entity}Dto dto, CancellationToken ct)");
         sb.AppendLine("    {");
-        sb.AppendLine($"        var validator = new Update{entity}DtoValidator();");
-        sb.AppendLine("        var validation = validator.Validate(dto);");
-        sb.AppendLine("        if (!validation.IsValid) { return BadRequest(validation.Errors); }");
+        sb.AppendLine("        var validation = _updateValidator.Validate(dto);");
+        AppendBadRequestIfInvalid(sb, config, indent: "        ");
         sb.AppendLine();
         sb.AppendLine("        var entity = await _repo.GetByIdAsync(id, ct).ConfigureAwait(false);");
         sb.AppendLine("        if (entity is null) { return NotFound(); }");
@@ -223,6 +241,51 @@ public static class ControllerEmitter
         sb.AppendLine("        await _repo.UpdateAsync(entity, ct).ConfigureAwait(false);");
         sb.AppendLine("        return NoContent();");
         sb.AppendLine("    }");
+    }
+
+    private static void EmitControllerCtor(
+        StringBuilder sb,
+        string collectionName,
+        string primaryParam,
+        string primaryAssignment,
+        string entity,
+        bool injectCreate,
+        bool injectUpdate)
+    {
+        var parameters = new List<string> { primaryParam };
+        if (injectCreate)
+        {
+            parameters.Add($"IValidator<Create{entity}Dto> createValidator");
+        }
+        if (injectUpdate)
+        {
+            parameters.Add($"IValidator<Update{entity}Dto> updateValidator");
+        }
+
+        sb.AppendLine($"    public {collectionName}Controller({string.Join(", ", parameters)})");
+        sb.AppendLine("    {");
+        sb.AppendLine(primaryAssignment);
+        if (injectCreate)
+        {
+            sb.AppendLine("        _createValidator = createValidator;");
+        }
+        if (injectUpdate)
+        {
+            sb.AppendLine("        _updateValidator = updateValidator;");
+        }
+        sb.AppendLine("    }");
+    }
+
+    private static void AppendBadRequestIfInvalid(StringBuilder sb, ApiSmithConfig config, string indent)
+    {
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            sb.AppendLine($"{indent}if (!validation.IsValid) {{ return BadRequest(new ApiProblem(\"Validation failed\", 400, \"https://apismith.dev/problems/validation\", validation.Errors.ToImmutableArray())); }}");
+        }
+        else
+        {
+            sb.AppendLine($"{indent}if (!validation.IsValid) {{ return BadRequest(validation.Errors); }}");
+        }
     }
 
     private static void EmitCommonUsings(StringBuilder sb, ApiSmithConfig config, IArchitectureLayout layout, NamedTable table, bool efCore)
@@ -244,6 +307,17 @@ public static class ControllerEmitter
         usings.Add(layout.EntityNamespace(config, table.Schema));
         usings.Add(layout.MapperNamespace(config, table.Schema));
         usings.Add(layout.ValidatorNamespace(config, table.Schema));
+        // IValidator<TDto> lives in the unsegmented validator core namespace; match ValidationResult.cs.
+        usings.Add(layout.ValidatorCoreNamespace(config));
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            usings.Add("System.Collections.Immutable");
+            usings.Add(layout.SharedErrorsNamespace(config));
+        }
+        if (config.Auth != AuthStyle.None)
+        {
+            usings.Add("Microsoft.AspNetCore.Authorization");
+        }
 
         foreach (var u in usings.OrderBy(u => u, System.StringComparer.Ordinal))
         {
@@ -261,6 +335,10 @@ public static class ControllerEmitter
         sb.AppendLine();
         sb.AppendLine("[ApiController]");
         sb.AppendLine($"[Route(\"{VersioningEmitter.RoutePrefix(config)}/{table.RouteSegment}\")]");
+        if (config.Auth != AuthStyle.None)
+        {
+            sb.AppendLine("[Authorize]");
+        }
         sb.AppendLine($"public sealed class {table.CollectionName}Controller : ControllerBase");
         sb.AppendLine("{");
 
@@ -280,9 +358,12 @@ public static class ControllerEmitter
         }
         else
         {
-            sb.AppendLine($"    private readonly {table.EntityName}Repository _repo;");
+            var roRepoType = config.EmitRepositoryInterfaces
+                ? $"I{table.EntityName}Repository"
+                : $"{table.EntityName}Repository";
+            sb.AppendLine($"    private readonly {roRepoType} _repo;");
             sb.AppendLine();
-            sb.AppendLine($"    public {table.CollectionName}Controller({table.EntityName}Repository repo) {{ _repo = repo; }}");
+            sb.AppendLine($"    public {table.CollectionName}Controller({roRepoType} repo) {{ _repo = repo; }}");
             sb.AppendLine();
             sb.AppendLine("    [HttpGet]");
             sb.AppendLine($"    public async Task<ActionResult<IReadOnlyList<{table.EntityName}Dto>>> List(CancellationToken ct)");

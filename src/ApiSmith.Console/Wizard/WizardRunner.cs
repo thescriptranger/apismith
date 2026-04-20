@@ -65,6 +65,16 @@ public sealed class WizardRunner
             Options = ImmutableArray.Create(DataAccessStyle.EfCore, DataAccessStyle.Dapper),
         }.Ask(_io);
 
+        var emitRepoIfaces = false;
+        if (dataAccess == DataAccessStyle.Dapper)
+        {
+            emitRepoIfaces = new ConfirmPrompt
+            {
+                Label = "Emit I<Entity>Repository interfaces for DI/testability?",
+                Default = false,
+            }.Ask(_io);
+        }
+
         var initialMigration = new ConfirmPrompt
         {
             Label = "Generate initial EF Core migration from the existing DB?",
@@ -111,6 +121,12 @@ public sealed class WizardRunner
         var tests  = new ConfirmPrompt { Label = "Include tests project?",  Default = true  }.Ask(_io);
         var docker = new ConfirmPrompt { Label = "Include Docker assets?", Default = true  }.Ask(_io);
 
+        var partitionSprocs = new ConfirmPrompt
+        {
+            Label = "Partition stored-procedure interfaces by schema?",
+            Default = false,
+        }.Ask(_io);
+
         var connection = new TextPrompt
         {
             Label = "SQL Server connection string",
@@ -119,18 +135,21 @@ public sealed class WizardRunner
 
         return new ApiSmithConfig
         {
+            ApiVersion = ApiVersion.V2,
             ProjectName = name,
             OutputDirectory = outDir,
             TargetFramework = tfm,
             EndpointStyle = endpoint,
             Architecture = architecture,
             DataAccess = dataAccess,
+            EmitRepositoryInterfaces = emitRepoIfaces,
             GenerateInitialMigration = initialMigration,
             Crud = crud,
             Versioning = versioning,
             Auth = auth,
             IncludeTestsProject = tests,
             IncludeDockerAssets = docker,
+            PartitionStoredProceduresBySchema = partitionSprocs,
             ConnectionString = connection,
         };
     }

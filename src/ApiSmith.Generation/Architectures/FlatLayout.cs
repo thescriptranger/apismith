@@ -13,20 +13,37 @@ public sealed class FlatLayout : ArchitectureLayoutBase
     public override ImmutableArray<ProjectDefinition> Projects(ApiSmithConfig config)
     {
         var name = ApiProjectAssemblyName(config);
+        var sharedAsm = SharedProjectAssemblyName(config);
+        var projectRefsBlock = config.ApiVersion == ApiVersion.V2
+            ? CsprojTemplates.ProjectReferencesBlock($"../{sharedAsm}/{sharedAsm}.csproj")
+            : string.Empty;
         var csproj = config.DataAccess is DataAccessStyle.EfCore
-            ? CsprojTemplates.WebProjectWithEfCore(config, name, name, string.Empty)
-            : CsprojTemplates.WebProjectWithDapper(config, name, name, string.Empty);
+            ? CsprojTemplates.WebProjectWithEfCore(config, name, name, projectRefsBlock)
+            : CsprojTemplates.WebProjectWithDapper(config, name, name, projectRefsBlock);
 
-        return ImmutableArray.Create(new ProjectDefinition(
+        var apiRefs = config.ApiVersion == ApiVersion.V2
+            ? ImmutableArray.Create(sharedAsm)
+            : ImmutableArray<string>.Empty;
+
+        var builder = ImmutableArray.CreateBuilder<ProjectDefinition>();
+        builder.Add(new ProjectDefinition(
             AssemblyName: name,
             RelativeCsprojPath: $"{ApiProjectFolder(config)}/{name}.csproj",
             CsprojContent: csproj,
             IsWebProject: true,
-            ReferencedAssemblies: ImmutableArray<string>.Empty));
+            ReferencedAssemblies: apiRefs));
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            builder.Add(SharedProject(config));
+        }
+        return builder.ToImmutable();
     }
 
     public override string EntityPath(ApiSmithConfig c, string schema, string name)    => $"{ApiProjectFolder(c)}/Entities{SchemaFolderSegment(c, schema)}/{name}.cs";
-    public override string DtoPath(ApiSmithConfig c, string schema, string fileName)   => $"{ApiProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
+    public override string DtoPath(ApiSmithConfig c, string schema, string fileName) =>
+        c.ApiVersion == ApiVersion.V2
+            ? $"{SharedProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs"
+            : $"{ApiProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
     public override string ValidatorPath(ApiSmithConfig c, string schema, string name) => $"{ApiProjectFolder(c)}/Validators{SchemaFolderSegment(c, schema)}/{name}DtoValidators.cs";
     public override string ValidationCorePath(ApiSmithConfig c)                         => $"{ApiProjectFolder(c)}/Validators/ValidationResult.cs";
     public override string MapperPath(ApiSmithConfig c, string schema, string name)    => $"{ApiProjectFolder(c)}/Mappings{SchemaFolderSegment(c, schema)}/{name}Mappings.cs";
@@ -36,7 +53,10 @@ public sealed class FlatLayout : ArchitectureLayoutBase
     public override string DispatcherPath(ApiSmithConfig c)               => $"{ApiProjectFolder(c)}/Shared/Dispatcher.cs";
 
     public override string EntityNamespace(ApiSmithConfig c, string schema)    => $"{c.ProjectName}.Entities{SchemaNamespaceSegment(c, schema)}";
-    public override string DtoNamespace(ApiSmithConfig c, string schema)       => $"{c.ProjectName}.Dtos{SchemaNamespaceSegment(c, schema)}";
+    public override string DtoNamespace(ApiSmithConfig c, string schema) =>
+        c.ApiVersion == ApiVersion.V2
+            ? $"{SharedNamespace(c)}.Dtos{SchemaNamespaceSegment(c, schema)}"
+            : $"{c.ProjectName}.Dtos{SchemaNamespaceSegment(c, schema)}";
     public override string ValidatorNamespace(ApiSmithConfig c, string schema) => $"{c.ProjectName}.Validators{SchemaNamespaceSegment(c, schema)}";
     public override string MapperNamespace(ApiSmithConfig c, string schema)    => $"{c.ProjectName}.Mappings{SchemaNamespaceSegment(c, schema)}";
     public override string ValidatorCoreNamespace(ApiSmithConfig c)            => $"{c.ProjectName}.Validators";

@@ -35,7 +35,28 @@ public static class DapperRepositoryEmitter
         sb.AppendLine();
         sb.AppendLine($"namespace {repoNs};");
         sb.AppendLine();
-        sb.AppendLine($"public sealed class {entity}Repository");
+
+        if (config.EmitRepositoryInterfaces)
+        {
+            sb.AppendLine($"public interface I{entity}Repository");
+            sb.AppendLine("{");
+            sb.AppendLine($"    Task<IReadOnlyList<{entity}>> ListAsync(CancellationToken ct = default);");
+            if (table.PrimaryKey is not null)
+            {
+                var pkIface = table.PrimaryKey;
+                sb.AppendLine($"    Task<{entity}?> GetByIdAsync({pkIface.ClrTypeName} id, CancellationToken ct = default);");
+                sb.AppendLine($"    Task<{entity}> CreateAsync({entity} entity, CancellationToken ct = default);");
+                sb.AppendLine($"    Task<bool> UpdateAsync({entity} entity, CancellationToken ct = default);");
+                sb.AppendLine($"    Task<bool> DeleteAsync({pkIface.ClrTypeName} id, CancellationToken ct = default);");
+            }
+            sb.AppendLine("}");
+            sb.AppendLine();
+        }
+
+        var classDecl = config.EmitRepositoryInterfaces
+            ? $"public sealed partial class {entity}Repository : I{entity}Repository"
+            : $"public sealed partial class {entity}Repository";
+        sb.AppendLine(classDecl);
         sb.AppendLine("{");
         sb.AppendLine("    private readonly IDbConnectionFactory _connections;");
         sb.AppendLine();

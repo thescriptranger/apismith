@@ -76,8 +76,10 @@ public sealed class Generator
             yield return csproj;
         }
 
-        yield return ProgramCsEmitter.Emit(config, layout, named);
+        yield return ProgramCsEmitter.Emit(config, layout, named, schema);
         yield return ValidationResultEmitter.Emit(config, layout);
+        if (ValidationErrorEmitter.Emit(config, layout) is { } vee) yield return vee;
+        if (ApiProblemEmitter.Emit(config, layout) is { } apee) yield return apee;
         yield return ApiSmithConfigEmitter.Emit(config, layout);
 
         foreach (var file in AppSettingsEmitter.Emit(config, layout))
@@ -101,7 +103,10 @@ public sealed class Generator
 
         if (config.Architecture is ArchitectureStyle.VerticalSlice)
         {
-            yield return DispatcherEmitter.Emit(config, layout);
+            foreach (var file in DispatcherEmitter.Emit(config, layout))
+            {
+                yield return file;
+            }
         }
 
         foreach (var file in VersioningEmitter.Emit(config, layout))
@@ -140,6 +145,11 @@ public sealed class Generator
         foreach (var table in named.JoinTables)
         {
             yield return EntityEmitter.Emit(config, layout, named, table);
+        }
+
+        foreach (var file in EnumEmitter.Emit(config, layout, named))
+        {
+            yield return file;
         }
 
         foreach (var table in named.Tables)

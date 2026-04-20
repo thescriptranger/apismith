@@ -39,12 +39,16 @@ public sealed class GeneratorSmokeTests
         }
     }
 
-    [Fact]
-    public void Replay_is_byte_identical()
+    [Theory]
+    [InlineData(ApiVersion.V1)]
+    [InlineData(ApiVersion.V2)]
+    public void Replay_is_byte_identical_for_version(ApiVersion version)
     {
         // same configured OutputDirectory (apismith.yaml identical), two physical write locations
         var (config1, output1) = Setup("ReplayApi");
         var (config2, output2) = Setup("ReplayApi");
+        config1.ApiVersion = version;
+        config2.ApiVersion = version;
         config1.OutputDirectory = "./ReplayApi";
         config2.OutputDirectory = "./ReplayApi";
         var graph = SchemaGraphFixtures.SmallBlog();
