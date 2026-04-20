@@ -1,0 +1,48 @@
+# .NET build outputs
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+.idea/
+
+# Rider
+*.DotSettings.user
+
+# Test output
+TestResults/
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+
+# Tooling caches
+.dotnet/
+.tool/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Local settings
+appsettings.Development.json
+appsettings.Local.json
+*.local.json
+
+# Snapshot rejection trees (committed expected go in tests/.../Snapshots/, rejections don't)
+**/Snapshots/__rejected__/
+
+# Logs
+*.log
+
+# Plan-mode internal artifacts (none should land here, but defensive)
+.claude/
+docs/

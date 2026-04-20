@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApiSmith.Core\ApiSmith.Core.csproj" />
+    <ProjectReference Include="..\ApiSmith.Config\ApiSmith.Config.csproj" />
+  </ItemGroup>
+
+</Project>

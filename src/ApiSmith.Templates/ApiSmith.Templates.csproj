@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <EmbeddedResource Include="Files\**\*.apismith" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApiSmith.Templating\ApiSmith.Templating.csproj" />
+  </ItemGroup>
+
+</Project>

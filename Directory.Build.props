@@ -1,0 +1,28 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Required so the IDE0005 (remove unnecessary usings) analyzer runs at build time -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- We are not publishing public API docs; suppress missing-doc-comment warnings -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <Authors>Art</Authors>
+    <Company>ApiSmith</Company>
+    <Product>ApiSmith</Product>
+    <Copyright>Copyright (c) Art</Copyright>
+    <RepositoryUrl>https://github.com/art/apismith</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ApiSmith.Cli</RootNamespace>
+    <AssemblyName>apismith</AssemblyName>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>apismith</ToolCommandName>
+    <PackageId>ApiSmith</PackageId>
+    <Version>0.1.0-alpha</Version>
+    <Description>Scaffolds a complete .NET backend API from an existing SQL Server database.</Description>
+    <PackageTags>scaffold;dotnet;sqlserver;codegen;api</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\</PackageOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Condition="Exists('..\..\README.md')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApiSmith.Core\ApiSmith.Core.csproj" />
+    <ProjectReference Include="..\ApiSmith.Console\ApiSmith.Console.csproj" />
+    <ProjectReference Include="..\ApiSmith.Config\ApiSmith.Config.csproj" />
+    <ProjectReference Include="..\ApiSmith.Introspection\ApiSmith.Introspection.csproj" />
+    <ProjectReference Include="..\ApiSmith.Generation\ApiSmith.Generation.csproj" />
+  </ItemGroup>
+
+</Project>

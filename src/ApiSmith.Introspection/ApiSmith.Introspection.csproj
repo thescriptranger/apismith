@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ApiSmith.Introspection.Tests" />
+    <InternalsVisibleTo Include="ApiSmith.Generation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ApiSmith.Core\ApiSmith.Core.csproj" />
+  </ItemGroup>
+
+</Project>
