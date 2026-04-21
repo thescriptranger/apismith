@@ -67,7 +67,7 @@ public static class MapperEmitter
             sb.AppendLine("    {");
             foreach (var c in table.Columns)
             {
-                if (c.IsIdentity) { continue; }
+                if (c.IsServerGenerated) { continue; }
 
                 sb.AppendLine($"        {c.PropertyName} = dto.{c.PropertyName},");
             }
@@ -78,7 +78,7 @@ public static class MapperEmitter
             sb.AppendLine("    {");
             foreach (var c in table.Columns)
             {
-                if (c.IsIdentity) { continue; }
+                if (c.IsServerGenerated) { continue; }
 
                 sb.AppendLine($"        entity.{c.PropertyName} = dto.{c.PropertyName};");
             }
@@ -150,7 +150,7 @@ public static class MapperEmitter
             sb.AppendLine("    {");
             foreach (var c in table.Columns)
             {
-                if (c.IsIdentity) { continue; }
+                if (c.IsServerGenerated) { continue; }
 
                 var rhs = c.EnumTypeName is not null
                     ? $"request.{c.PropertyName}.ToString()"
@@ -165,7 +165,7 @@ public static class MapperEmitter
             sb.AppendLine("    {");
             foreach (var c in table.Columns)
             {
-                if (c.IsIdentity) { continue; }
+                if (c.IsServerGenerated) { continue; }
 
                 var rhs = c.EnumTypeName is not null
                     ? $"request.{c.PropertyName}.ToString()"

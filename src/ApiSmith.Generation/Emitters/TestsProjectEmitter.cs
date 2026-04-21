@@ -232,7 +232,7 @@ public static class TestsProjectEmitter
         // Required strings get "x" for the NotNullOrWhiteSpace rule; column order preserves the 3.2-era output.
         foreach (var c in table.Columns)
         {
-            if (c.IsIdentity) { continue; }
+            if (c.IsServerGenerated) { continue; }
 
             if (!c.IsNullable && c.ClrTypeName == "string")
             {

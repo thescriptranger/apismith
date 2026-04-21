@@ -84,7 +84,7 @@ public static class DapperRepositoryEmitter
 
         var pk = table.PrimaryKey;
         var pkCol = table.Columns.First(c => c.PropertyName == pk.PropertyName);
-        var insertCols = table.Columns.Where(c => !c.IsIdentity).ToList();
+        var insertCols = table.Columns.Where(c => !c.IsServerGenerated).ToList();
         var insertColList = string.Join(", ", insertCols.Select(c => $"[{c.DbName}]"));
         var insertParamList = string.Join(", ", insertCols.Select(c => $"@{c.PropertyName}"));
         var updateSet = string.Join(", ", insertCols.Select(c => $"[{c.DbName}] = @{c.PropertyName}"));
@@ -101,7 +101,7 @@ public static class DapperRepositoryEmitter
         sb.AppendLine("    {");
         sb.AppendLine("        using var conn = await _connections.OpenAsync(ct).ConfigureAwait(false);");
 
-        if (pkCol.IsIdentity)
+        if (pkCol.IsServerGenerated)
         {
             sb.AppendLine($"        var sql = \"INSERT INTO {fullTable} ({insertColList}) OUTPUT INSERTED.[{pkCol.DbName}] VALUES ({insertParamList})\";");
             sb.AppendLine($"        var newId = await conn.ExecuteScalarAsync<{pk.ClrTypeName}>(sql, entity).ConfigureAwait(false);");

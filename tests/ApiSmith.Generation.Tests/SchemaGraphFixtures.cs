@@ -43,6 +43,21 @@ internal static class SchemaGraphFixtures
         return SchemaGraph.Create(new[] { dbo });
     }
 
+    /// <summary>Single table with a uniqueidentifier PK seeded via DEFAULT NEWID() — the shape that exposed the identity-only skip bug.</summary>
+    public static SchemaGraph GuidPkEntity()
+    {
+        var genders = Table.Create("dbo", "genders",
+            new[]
+            {
+                new Column("gender_id", 1, "uniqueidentifier", IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: "(newid())"),
+                new Column("name",      2, "nvarchar",         IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: 100,  Precision: null, Scale: null, DefaultValue: null),
+            },
+            PrimaryKey.Create("PK_genders", new[] { "gender_id" }));
+
+        var dbo = DbSchema.Create("dbo", new[] { genders });
+        return SchemaGraph.Create(new[] { dbo });
+    }
+
     /// <summary>One-to-many (user→posts) plus many-to-many via post_tags join table.</summary>
     public static SchemaGraph Relational()
     {

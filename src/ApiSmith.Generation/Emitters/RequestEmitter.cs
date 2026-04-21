@@ -52,7 +52,7 @@ public static class RequestEmitter
         sb.AppendLine("{");
         foreach (var c in table.Columns)
         {
-            if (c.IsIdentity) continue;
+            if (c.IsServerGenerated) continue;
 
             var useEnumType = c.EnumTypeName is not null;
 

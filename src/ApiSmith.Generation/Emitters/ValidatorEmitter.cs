@@ -67,7 +67,7 @@ public static class ValidatorEmitter
 
         foreach (var c in table.Columns)
         {
-            if (c.IsIdentity)
+            if (c.IsServerGenerated)
             {
                 continue;
             }

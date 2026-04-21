@@ -253,6 +253,25 @@ public sealed record NamedTable(
             pk = columns.FirstOrDefault(c => string.Equals(c.DbName, pkDbName, System.StringComparison.Ordinal));
         }
 
+        // First pass: identity columns are always server-generated.
+        columns = columns.Select(c => c.IsIdentity ? c with { IsServerGenerated = true } : c).ToImmutableArray();
+        if (pk is not null && pk.IsIdentity)
+        {
+            pk = columns.FirstOrDefault(c => string.Equals(c.DbName, pk.DbName, System.StringComparison.Ordinal));
+        }
+
+        // Second pass: a PK with a DB default is server-generated (Guid NEWID, sequences, etc.).
+        if (pk is not null && !pk.IsServerGenerated)
+        {
+            var pkSource = table.Columns.FirstOrDefault(c => string.Equals(c.Name, pk.DbName, System.StringComparison.Ordinal));
+            if (pkSource?.DefaultValue is not null)
+            {
+                var updatedPk = pk with { IsServerGenerated = true };
+                columns = columns.Replace(pk, updatedPk);
+                pk = updatedPk;
+            }
+        }
+
         return new NamedTable(
             Schema: table.Schema,
             DbTableName: table.Name,
@@ -302,7 +321,8 @@ public sealed record NamedColumn(
     bool IsNullable,
     bool IsIdentity,
     int? MaxLength,
-    string? EnumTypeName = null)
+    string? EnumTypeName = null,
+    bool IsServerGenerated = false)
 {
     public static NamedColumn From(Column column)
     {

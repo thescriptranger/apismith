@@ -71,7 +71,7 @@ public static class DtoEmitter
 
         foreach (var c in table.Columns)
         {
-            if (!includeIdentity && c.IsIdentity)
+            if (!includeIdentity && c.IsServerGenerated)
             {
                 continue;
             }

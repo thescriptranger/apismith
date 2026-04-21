@@ -105,7 +105,7 @@ public static class DbContextEmitter
             if (t.PrimaryKey is { } pk)
             {
                 sb.AppendLine($"            b.HasKey(e => e.{pk.PropertyName});");
-                if (pk.IsIdentity)
+                if (pk.IsServerGenerated)
                 {
                     sb.AppendLine($"            b.Property(e => e.{pk.PropertyName}).ValueGeneratedOnAdd();");
                 }
