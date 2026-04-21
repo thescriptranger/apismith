@@ -80,6 +80,26 @@ internal static class SchemaGraphFixtures
         return SchemaGraph.Create(new[] { dbo });
     }
 
+    /// <summary>Table with a single self-referencing FK (parent_id → id) — the shape that exposed the CS0542 naming collision.</summary>
+    public static SchemaGraph SelfReferencingWithOneFk()
+    {
+        var tacticCategories = Table.Create("dbo", "tactic_categories",
+            new[]
+            {
+                new Column("id",        1, "int",      IsNullable: false, IsIdentity: true,  IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+                new Column("name",      2, "nvarchar", IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: 100,  Precision: null, Scale: null, DefaultValue: null),
+                new Column("parent_id", 3, "int",      IsNullable: true,  IsIdentity: false, IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+            },
+            PrimaryKey.Create("PK_tactic_categories", new[] { "id" }),
+            foreignKeys: new[]
+            {
+                ForeignKey.Create("FK_tc_parent", "dbo", "tactic_categories", new[] { "parent_id" }, "dbo", "tactic_categories", new[] { "id" }),
+            });
+
+        var dbo = DbSchema.Create("dbo", new[] { tacticCategories });
+        return SchemaGraph.Create(new[] { dbo });
+    }
+
     /// <summary>One-to-many (user→posts) plus many-to-many via post_tags join table.</summary>
     public static SchemaGraph Relational()
     {

@@ -58,6 +58,16 @@ public sealed record NamedSchemaModel(
                         ? NavigationNamer.ReferenceName(sourceColumnName, target.EntityName)
                         : target.EntityName;
 
+                    // Self-ref CS0542 avoidance — navName can't equal the enclosing class name.
+                    if (string.Equals(navName, source.EntityName, System.StringComparison.Ordinal))
+                    {
+                        navName = NavigationNamer.ReferenceName(sourceColumnName, target.EntityName);
+                        if (string.Equals(navName, source.EntityName, System.StringComparison.Ordinal))
+                        {
+                            navName = navName + "Navigation";
+                        }
+                    }
+
                     // Avoid collision with a column property of the same name.
                     if (source.Columns.Any(c => string.Equals(c.PropertyName, navName, System.StringComparison.Ordinal)))
                     {
