@@ -99,14 +99,14 @@ public sealed class SharedProjectTests
     }
 
     [Fact]
-    public void V2_flat_dto_path_lands_in_shared()
+    public void V2_flat_dto_path_is_server_side()
     {
         var config = new ApiSmithConfig { ProjectName = "Demo", ApiVersion = ApiVersion.V2, Architecture = ArchitectureStyle.Flat };
         var layout = LayoutFactory.Create(ArchitectureStyle.Flat);
         var path = layout.DtoPath(config, "dbo", "UserDtos");
         var ns = layout.DtoNamespace(config, "dbo");
-        Assert.Equal("src/Demo.Shared/Dtos/UserDtos.cs", path.Replace('\\', '/'));
-        Assert.Equal("Demo.Shared.Dtos", ns);
+        Assert.Equal("src/Demo/Dtos/UserDtos.cs", path.Replace('\\', '/'));
+        Assert.Equal("Demo.Dtos", ns);
     }
 
     [Fact]
@@ -124,58 +124,14 @@ public sealed class SharedProjectTests
     [InlineData(ArchitectureStyle.Layered)]
     [InlineData(ArchitectureStyle.Onion)]
     [InlineData(ArchitectureStyle.VerticalSlice)]
-    public void V2_dto_paths_land_in_shared_for_every_architecture(ArchitectureStyle arch)
+    public void V2_dto_paths_are_server_side_for_every_architecture(ArchitectureStyle arch)
     {
         var config = new ApiSmithConfig { ProjectName = "Demo", ApiVersion = ApiVersion.V2, Architecture = arch };
         var layout = LayoutFactory.Create(arch);
         var path = layout.DtoPath(config, "dbo", "X").Replace('\\', '/');
         var ns = layout.DtoNamespace(config, "dbo");
-        Assert.Contains("Demo.Shared/Dtos", path);
-        Assert.Equal("Demo.Shared.Dtos", ns);
-    }
-
-    [Fact]
-    public void V2_create_dto_has_data_annotations()
-    {
-        var (config, output) = Setup("Attr1");
-        config.ApiVersion = ApiVersion.V2;
-        var graph = SchemaGraphFixtures.SmallBlog();
-
-        try
-        {
-            new Generator(new NullLog()).Generate(config, graph, output);
-            var userDtos = File.ReadAllText(Path.Combine(output, "src", "Attr1.Shared", "Dtos", "UserDtos.cs"));
-
-            Assert.Contains("using System.ComponentModel.DataAnnotations;", userDtos);
-            // Schema: users.email is NOT NULL nvarchar(256) -> Required + StringLength(256)
-            Assert.Contains("[Required]", userDtos);
-            Assert.Contains("[StringLength(256)]", userDtos);
-        }
-        finally { CleanupBestEffort(output); }
-    }
-
-    [Fact]
-    public void V2_read_dto_has_no_data_annotations()
-    {
-        var (config, output) = Setup("Attr2");
-        config.ApiVersion = ApiVersion.V2;
-        var graph = SchemaGraphFixtures.SmallBlog();
-
-        try
-        {
-            new Generator(new NullLog()).Generate(config, graph, output);
-            var userDtos = File.ReadAllText(Path.Combine(output, "src", "Attr2.Shared", "Dtos", "UserDtos.cs"));
-
-            // The read DTO is `public sealed class UserDto` -- its block should have no attributes.
-            var readBlockStart = userDtos.IndexOf("public sealed class UserDto ");
-            if (readBlockStart < 0) readBlockStart = userDtos.IndexOf("public sealed class UserDto\n");
-            Assert.True(readBlockStart >= 0, "UserDto class not found");
-            var readBlockEnd = userDtos.IndexOf("\n}", readBlockStart);
-            var readBlock = userDtos.Substring(readBlockStart, readBlockEnd - readBlockStart);
-            Assert.DoesNotContain("[Required]", readBlock);
-            Assert.DoesNotContain("[StringLength", readBlock);
-        }
-        finally { CleanupBestEffort(output); }
+        Assert.DoesNotContain("Demo.Shared/", path);
+        Assert.DoesNotContain("Shared", ns);
     }
 
     [Fact]
@@ -192,24 +148,6 @@ public sealed class SharedProjectTests
             var userDtos = File.ReadAllText(Path.Combine(output, "src", "Attr3", "Dtos", "UserDtos.cs"));
             Assert.DoesNotContain("DataAnnotations", userDtos);
             Assert.DoesNotContain("[Required]", userDtos);
-        }
-        finally { CleanupBestEffort(output); }
-    }
-
-    [Fact]
-    public void V2_create_dto_has_range_attribute_for_translatable_check()
-    {
-        var (config, output) = Setup("Attr4");
-        config.ApiVersion = ApiVersion.V2;
-        // Schema: orders has CHECK (total_cents >= 0)
-        var graph = SchemaGraphFixtures.RelationalWithCheck();
-
-        try
-        {
-            new Generator(new NullLog()).Generate(config, graph, output);
-            var orderDtos = File.ReadAllText(Path.Combine(output, "src", "Attr4.Shared", "Dtos", "OrderDtos.cs"));
-            // >= 0 translates to [Range(0, long.MaxValue)]
-            Assert.Contains("[Range(0, long.MaxValue)]", orderDtos);
         }
         finally { CleanupBestEffort(output); }
     }

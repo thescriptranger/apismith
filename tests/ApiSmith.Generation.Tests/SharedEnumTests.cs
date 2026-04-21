@@ -87,7 +87,7 @@ public sealed class SharedEnumTests
         try
         {
             new Generator(new NullLog()).Generate(config, graph, output);
-            var dtos = File.ReadAllText(Path.Combine(output, "src", "Enum5.Shared", "Dtos", "OrderDtos.cs"));
+            var dtos = File.ReadAllText(Path.Combine(output, "src", "Enum5", "Dtos", "OrderDto.cs"));
 
             Assert.Contains("using Enum5.Shared.Enums;", dtos);
             Assert.Contains("public Status Status { get; set; }", dtos);
@@ -109,8 +109,8 @@ public sealed class SharedEnumTests
 
             // Entity → Dto: string → enum via Enum.Parse
             Assert.Contains("System.Enum.Parse<Status>", mapper);
-            // Dto → Entity: enum → string via .ToString()
-            Assert.Contains("dto.Status.ToString()", mapper);
+            // Request → Entity: enum → string via .ToString() (V2 write path now comes from Request, not Dto)
+            Assert.Contains("request.Status.ToString()", mapper);
         }
         finally { CleanupBestEffort(output); }
     }

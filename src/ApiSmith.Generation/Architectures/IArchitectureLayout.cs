@@ -18,6 +18,13 @@ public interface IArchitectureLayout
     // Per-entity files
     string EntityPath(ApiSmithConfig config, string schema, string entityName);
     string DtoPath(ApiSmithConfig config, string schema, string fileName);
+
+    // Shared wire contracts (apiVersion: v2). Requests carry DataAnnotations; Responses don't.
+    string RequestPath(ApiSmithConfig config, string schema, string fileName);
+    string RequestNamespace(ApiSmithConfig config, string schema);
+    string ResponsePath(ApiSmithConfig config, string schema, string fileName);
+    string ResponseNamespace(ApiSmithConfig config, string schema);
+
     string ValidatorPath(ApiSmithConfig config, string schema, string entityName);
     string ValidationCorePath(ApiSmithConfig config);
     string MapperPath(ApiSmithConfig config, string schema, string entityName);

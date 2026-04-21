@@ -60,10 +60,12 @@ public sealed class CleanLayout : ArchitectureLayoutBase
 
     public override string EntityPath(ApiSmithConfig c, string schema, string name)    => $"src/{Domain(c)}/Entities{SchemaFolderSegment(c, schema)}/{name}.cs";
     public override string DtoPath(ApiSmithConfig c, string schema, string fileName) =>
-        c.ApiVersion == ApiVersion.V2
-            ? $"{SharedProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs"
-            : $"src/{Application(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
-    public override string ValidatorPath(ApiSmithConfig c, string schema, string name) => $"src/{Application(c)}/Validators{SchemaFolderSegment(c, schema)}/{name}DtoValidators.cs";
+        $"src/{Application(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
+    public override string ValidatorPath(ApiSmithConfig c, string schema, string name)
+    {
+        var suffix = c.ApiVersion == ApiVersion.V2 ? "Validators" : "DtoValidators";
+        return $"src/{Application(c)}/Validators{SchemaFolderSegment(c, schema)}/{name}{suffix}.cs";
+    }
     public override string ValidationCorePath(ApiSmithConfig c)                         => $"src/{Application(c)}/Validators/ValidationResult.cs";
     public override string MapperPath(ApiSmithConfig c, string schema, string name)    => $"src/{Application(c)}/Mappings{SchemaFolderSegment(c, schema)}/{name}Mappings.cs";
     public override string DbContextPath(ApiSmithConfig c)               => $"src/{Infrastructure(c)}/Data/{c.ProjectName}DbContext.cs";
@@ -73,9 +75,7 @@ public sealed class CleanLayout : ArchitectureLayoutBase
 
     public override string EntityNamespace(ApiSmithConfig c, string schema)    => $"{Domain(c)}.Entities{SchemaNamespaceSegment(c, schema)}";
     public override string DtoNamespace(ApiSmithConfig c, string schema) =>
-        c.ApiVersion == ApiVersion.V2
-            ? $"{SharedNamespace(c)}.Dtos{SchemaNamespaceSegment(c, schema)}"
-            : $"{Application(c)}.Dtos{SchemaNamespaceSegment(c, schema)}";
+        $"{Application(c)}.Dtos{SchemaNamespaceSegment(c, schema)}";
     public override string ValidatorNamespace(ApiSmithConfig c, string schema) => $"{Application(c)}.Validators{SchemaNamespaceSegment(c, schema)}";
     public override string MapperNamespace(ApiSmithConfig c, string schema)    => $"{Application(c)}.Mappings{SchemaNamespaceSegment(c, schema)}";
     public override string ValidatorCoreNamespace(ApiSmithConfig c)            => $"{Application(c)}.Validators";

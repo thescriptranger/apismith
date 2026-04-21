@@ -1,9 +1,7 @@
-using System.Globalization;
 using System.Text;
 using ApiSmith.Config;
 using ApiSmith.Core.Pipeline;
 using ApiSmith.Generation.Architectures;
-using ApiSmith.Generation.Validation;
 
 namespace ApiSmith.Generation.Emitters;
 
@@ -11,32 +9,49 @@ public static class DtoEmitter
 {
     public static EmittedFile Emit(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
     {
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            return EmitV2SingleDto(config, layout, table);
+        }
+        return EmitV1Aggregate(config, layout, table);
+    }
+
+    private static EmittedFile EmitV2SingleDto(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
+    {
         var sb = new StringBuilder();
 
-        var isV2 = config.ApiVersion == ApiVersion.V2;
-        var hasEnumColumn = isV2 && table.Columns.Any(c => c.EnumTypeName is not null);
-        if (isV2)
+        var hasEnumColumn = table.Columns.Any(c => c.EnumTypeName is not null);
+        if (hasEnumColumn)
         {
-            sb.AppendLine("using System.ComponentModel.DataAnnotations;");
-            if (hasEnumColumn)
-            {
-                sb.AppendLine($"using {layout.SharedNamespace(config)}.Enums{SegmentNamespace(config, table.Schema)};");
-            }
+            sb.AppendLine($"using {layout.SharedNamespace(config)}.Enums{SegmentNamespace(config, table.Schema)};");
             sb.AppendLine();
         }
 
         sb.AppendLine($"namespace {layout.DtoNamespace(config, table.Schema)};");
         sb.AppendLine();
 
-        EmitClass(sb, $"{table.EntityName}Dto", table, includeIdentity: true, isWriteDto: false, emitAttributes: false, isV2: isV2);
+        EmitClass(sb, $"{table.EntityName}Dto", table, includeIdentity: true, isV2: true);
+
+        var fileName = $"{table.EntityName}Dto";
+        return new EmittedFile(layout.DtoPath(config, table.Schema, fileName), sb.ToString());
+    }
+
+    private static EmittedFile EmitV1Aggregate(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
+    {
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"namespace {layout.DtoNamespace(config, table.Schema)};");
+        sb.AppendLine();
+
+        EmitClass(sb, $"{table.EntityName}Dto", table, includeIdentity: true, isV2: false);
 
         // Views: read-only, no Create/Update DTOs.
         if (!table.IsView)
         {
             sb.AppendLine();
-            EmitClass(sb, $"Create{table.EntityName}Dto", table, includeIdentity: false, isWriteDto: true, emitAttributes: isV2, isV2: isV2);
+            EmitClass(sb, $"Create{table.EntityName}Dto", table, includeIdentity: false, isV2: false);
             sb.AppendLine();
-            EmitClass(sb, $"Update{table.EntityName}Dto", table, includeIdentity: false, isWriteDto: true, emitAttributes: isV2, isV2: isV2);
+            EmitClass(sb, $"Update{table.EntityName}Dto", table, includeIdentity: false, isV2: false);
         }
 
         return new EmittedFile(layout.DtoPath(config, table.Schema, $"{table.EntityName}Dtos"), sb.ToString());
@@ -49,7 +64,7 @@ public static class DtoEmitter
         return emit ? "." + ApiSmith.Naming.SchemaSegment.ToPascal(schema) : string.Empty;
     }
 
-    private static void EmitClass(StringBuilder sb, string className, NamedTable table, bool includeIdentity, bool isWriteDto, bool emitAttributes, bool isV2)
+    private static void EmitClass(StringBuilder sb, string className, NamedTable table, bool includeIdentity, bool isV2)
     {
         sb.AppendLine($"public sealed class {className}");
         sb.AppendLine("{");
@@ -62,55 +77,6 @@ public static class DtoEmitter
             }
 
             var useEnumType = isV2 && c.EnumTypeName is not null;
-
-            if (emitAttributes && isWriteDto)
-            {
-                if (!c.IsNullable && c.ClrTypeName == "string" && !useEnumType)
-                {
-                    sb.AppendLine("    [Required]");
-                }
-
-                if (c.ClrTypeName == "string" && c.MaxLength.HasValue && !useEnumType)
-                {
-                    sb.AppendLine($"    [StringLength({c.MaxLength.Value})]");
-                }
-
-                if (table.Source is { } src)
-                {
-                    foreach (var ck in src.CheckConstraints)
-                    {
-                        var translated = CheckConstraintTranslator.TryTranslate(ck.Expression);
-                        string? lo = null;
-                        string? hi = null;
-
-                        if (translated is ComparisonRule cmp &&
-                            string.Equals(cmp.Column, c.DbName, System.StringComparison.OrdinalIgnoreCase))
-                        {
-                            (lo, hi) = cmp.Operator switch
-                            {
-                                ">=" => (cmp.LiteralValue.ToString(CultureInfo.InvariantCulture), "long.MaxValue"),
-                                ">"  => ((cmp.LiteralValue + 1).ToString(CultureInfo.InvariantCulture), "long.MaxValue"),
-                                "<=" => ("long.MinValue", cmp.LiteralValue.ToString(CultureInfo.InvariantCulture)),
-                                "<"  => ("long.MinValue", (cmp.LiteralValue - 1).ToString(CultureInfo.InvariantCulture)),
-                                _    => ((string?)null, (string?)null),
-                            };
-                        }
-                        else if (translated is BetweenRule btw &&
-                            string.Equals(btw.Column, c.DbName, System.StringComparison.OrdinalIgnoreCase))
-                        {
-                            lo = btw.LowerInclusive.ToString(CultureInfo.InvariantCulture);
-                            hi = btw.UpperInclusive.ToString(CultureInfo.InvariantCulture);
-                        }
-
-                        if (lo is not null && hi is not null)
-                        {
-                            sb.AppendLine($"    [Range({lo}, {hi})]");
-                            // At most one [Range] per property even if multiple CHECKs target this column.
-                            break;
-                        }
-                    }
-                }
-            }
 
             if (useEnumType)
             {

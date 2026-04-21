@@ -12,12 +12,17 @@ public static class ValidatorEmitter
 {
     public static EmittedFile Emit(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine($"using {layout.DtoNamespace(config, table.Schema)};");
         if (config.ApiVersion == ApiVersion.V2)
         {
-            sb.AppendLine($"using {layout.SharedErrorsNamespace(config)};");
+            return EmitV2(config, layout, table);
         }
+        return EmitV1(config, layout, table);
+    }
+
+    private static EmittedFile EmitV1(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"using {layout.DtoNamespace(config, table.Schema)};");
         sb.AppendLine();
         sb.AppendLine($"namespace {layout.ValidatorNamespace(config, table.Schema)};");
         sb.AppendLine();
@@ -25,6 +30,22 @@ public static class ValidatorEmitter
         EmitValidator(sb, config, table, $"Create{table.EntityName}Dto", $"Create{table.EntityName}DtoValidator");
         sb.AppendLine();
         EmitValidator(sb, config, table, $"Update{table.EntityName}Dto", $"Update{table.EntityName}DtoValidator");
+
+        return new EmittedFile(layout.ValidatorPath(config, table.Schema, table.EntityName), sb.ToString());
+    }
+
+    private static EmittedFile EmitV2(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"using {layout.RequestNamespace(config, table.Schema)};");
+        sb.AppendLine($"using {layout.SharedErrorsNamespace(config)};");
+        sb.AppendLine();
+        sb.AppendLine($"namespace {layout.ValidatorNamespace(config, table.Schema)};");
+        sb.AppendLine();
+
+        EmitValidator(sb, config, table, $"Create{table.EntityName}Request", $"Create{table.EntityName}RequestValidator");
+        sb.AppendLine();
+        EmitValidator(sb, config, table, $"Update{table.EntityName}Request", $"Update{table.EntityName}RequestValidator");
 
         return new EmittedFile(layout.ValidatorPath(config, table.Schema, table.EntityName), sb.ToString());
     }

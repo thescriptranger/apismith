@@ -110,6 +110,80 @@ public sealed class ValidatorDiTests
         finally { CleanupBestEffort(output); }
     }
 
+    [Fact]
+    public void V2_validator_class_implements_request_interface()
+    {
+        var (config, output) = Setup("Val7");
+        config.ApiVersion = ApiVersion.V2;
+        var graph = SchemaGraphFixtures.SmallBlog();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            var vPath = Path.Combine(output, "src", "Val7", "Validators", "PostValidators.cs");
+            Assert.True(File.Exists(vPath), $"Missing {vPath}");
+            var content = File.ReadAllText(vPath);
+            Assert.Contains("public sealed partial class CreatePostRequestValidator : IValidator<CreatePostRequest>", content);
+            Assert.Contains("public sealed partial class UpdatePostRequestValidator : IValidator<UpdatePostRequest>", content);
+            Assert.Contains("using Val7.Shared.Requests;", content);
+        }
+        finally { CleanupBestEffort(output); }
+    }
+
+    [Fact]
+    public void V1_validator_class_still_implements_dto_interface()
+    {
+        var (config, output) = Setup("Val8");
+        config.ApiVersion = ApiVersion.V1;
+        var graph = SchemaGraphFixtures.SmallBlog();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            var vPath = Path.Combine(output, "src", "Val8", "Validators", "PostDtoValidators.cs");
+            Assert.True(File.Exists(vPath));
+            var content = File.ReadAllText(vPath);
+            Assert.Contains("CreatePostDtoValidator : IValidator<CreatePostDto>", content);
+        }
+        finally { CleanupBestEffort(output); }
+    }
+
+    [Fact]
+    public void V2_program_cs_registers_request_validators()
+    {
+        var (config, output) = Setup("Prog1");
+        config.ApiVersion = ApiVersion.V2;
+        var graph = SchemaGraphFixtures.SmallBlog();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            var program = File.ReadAllText(Path.Combine(output, "src", "Prog1", "Program.cs"));
+            Assert.Contains("AddScoped<IValidator<CreatePostRequest>, CreatePostRequestValidator>()", program);
+            Assert.Contains("AddScoped<IValidator<UpdatePostRequest>, UpdatePostRequestValidator>()", program);
+            Assert.DoesNotContain("AddScoped<IValidator<CreatePostDto>", program);
+            // V2 Program.cs should import Shared.Requests (not the server-side Dto namespace for validation)
+            Assert.Contains("using Prog1.Shared.Requests", program);
+        }
+        finally { CleanupBestEffort(output); }
+    }
+
+    [Fact]
+    public void V1_program_cs_still_registers_dto_validators()
+    {
+        var (config, output) = Setup("Prog2");
+        config.ApiVersion = ApiVersion.V1;
+        var graph = SchemaGraphFixtures.SmallBlog();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            var program = File.ReadAllText(Path.Combine(output, "src", "Prog2", "Program.cs"));
+            Assert.Contains("AddScoped<IValidator<CreatePostDto>, CreatePostDtoValidator>()", program);
+        }
+        finally { CleanupBestEffort(output); }
+    }
+
     private static (ApiSmithConfig Config, string Output) Setup(string projectName)
     {
         var output = Path.Combine(Path.GetTempPath(), "apismith-tests", projectName + "-" + System.Guid.NewGuid().ToString("N")[..8]);

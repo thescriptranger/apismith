@@ -92,10 +92,28 @@ public static class TestsProjectEmitter
             """;
     }
 
+    // Contracts = the write-shaped type (Dto under V1, Request under V2) plus its validator class suffix
+    // and the namespace the tests must `using` to reach the write-shaped type.
+    private static (string WriteSuffix, string ValidatorSuffix, string ContractNs) ContractsFor(
+        ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
+    {
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            return (
+                WriteSuffix: "Request",
+                ValidatorSuffix: "RequestValidator",
+                ContractNs: layout.RequestNamespace(config, table.Schema));
+        }
+        return (
+            WriteSuffix: "Dto",
+            ValidatorSuffix: "DtoValidator",
+            ContractNs: layout.DtoNamespace(config, table.Schema));
+    }
+
     private static string BuildValidatorTest(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
     {
         var testsNs = layout.TestsNamespace(config);
-        var dtoNs = layout.DtoNamespace(config, table.Schema);
+        var (writeSuffix, validatorSuffix, contractNs) = ContractsFor(config, layout, table);
         var validatorNs = layout.ValidatorNamespace(config, table.Schema);
         var entity = table.EntityName;
 
@@ -106,20 +124,20 @@ public static class TestsProjectEmitter
         sbClass.Append("    [Fact]\n");
         sbClass.Append("    public void Rejects_null_dto()\n");
         sbClass.Append("    {\n");
-        sbClass.Append($"        var result = new Create{entity}DtoValidator().Validate(null!);\n");
+        sbClass.Append($"        var result = new Create{entity}{validatorSuffix}().Validate(null!);\n");
         sbClass.Append("        Assert.False(result.IsValid);\n");
         sbClass.Append("    }\n");
         sbClass.Append("\n");
         sbClass.Append("    [Fact]\n");
         sbClass.Append("    public void Accepts_minimally_valid_dto()\n");
         sbClass.Append("    {\n");
-        sbClass.Append($"        var dto = new Create{entity}Dto\n");
+        sbClass.Append($"        var dto = new Create{entity}{writeSuffix}\n");
         sbClass.Append("        {\n");
         // Blank line when empty matches the 3.2-era template — replay invariant.
         sbClass.Append(minimallyValidInitializer.Length == 0 ? "\n" : minimallyValidInitializer);
         sbClass.Append("        };\n");
         sbClass.Append("\n");
-        sbClass.Append($"        var result = new Create{entity}DtoValidator().Validate(dto);\n");
+        sbClass.Append($"        var result = new Create{entity}{validatorSuffix}().Validate(dto);\n");
         sbClass.Append("        Assert.True(result.IsValid, string.Join(\"; \", result.Errors.Select(e => $\"{e.PropertyName}: {e.Message}\")));\n");
         sbClass.Append("    }\n");
 
@@ -138,12 +156,12 @@ public static class TestsProjectEmitter
                 sbClass.Append("    [Fact]\n");
                 sbClass.Append("    public void Rejects_default_foreign_key()\n");
                 sbClass.Append("    {\n");
-                sbClass.Append($"        var dto = new Create{entity}Dto\n");
+                sbClass.Append($"        var dto = new Create{entity}{writeSuffix}\n");
                 sbClass.Append("        {\n");
                 sbClass.Append(fkInitializer);
                 sbClass.Append("        };\n");
                 sbClass.Append("\n");
-                sbClass.Append($"        var result = new Create{entity}DtoValidator().Validate(dto);\n");
+                sbClass.Append($"        var result = new Create{entity}{validatorSuffix}().Validate(dto);\n");
                 sbClass.Append("        Assert.False(result.IsValid);\n");
                 sbClass.Append($"        Assert.Contains(result.Errors, e => e.PropertyName == \"{requiredFk.FkPropertyName}\");\n");
                 sbClass.Append("    }\n");
@@ -163,19 +181,19 @@ public static class TestsProjectEmitter
             sbClass.Append("    [Fact]\n");
             sbClass.Append($"    public void Rejects_value_outside_check_constraint_{co.PropertyName}()\n");
             sbClass.Append("    {\n");
-            sbClass.Append($"        var dto = new Create{entity}Dto\n");
+            sbClass.Append($"        var dto = new Create{entity}{writeSuffix}\n");
             sbClass.Append("        {\n");
             sbClass.Append(violatingInitializer);
             sbClass.Append("        };\n");
             sbClass.Append("\n");
-            sbClass.Append($"        var result = new Create{entity}DtoValidator().Validate(dto);\n");
+            sbClass.Append($"        var result = new Create{entity}{validatorSuffix}().Validate(dto);\n");
             sbClass.Append("        Assert.False(result.IsValid);\n");
             sbClass.Append($"        Assert.Contains(result.Errors, e => e.PropertyName == \"{co.PropertyName}\");\n");
             sbClass.Append("    }\n");
         }
 
         var result = new StringBuilder();
-        result.Append($"using {dtoNs};\n");
+        result.Append($"using {contractNs};\n");
         result.Append($"using {validatorNs};\n");
         result.Append("\n");
         result.Append($"namespace {testsNs};\n");
@@ -352,7 +370,7 @@ public static class TestsProjectEmitter
     private static string BuildEndpointTest(ApiSmithConfig config, IArchitectureLayout layout, NamedTable table)
     {
         var testsNs = layout.TestsNamespace(config);
-        var dtoNs = layout.DtoNamespace(config, table.Schema);
+        var (writeSuffix, _, contractNs) = ContractsFor(config, layout, table);
         var route = table.RouteSegment;
         var entity = table.EntityName;
         var crud = config.Crud;
@@ -399,10 +417,10 @@ public static class TestsProjectEmitter
         if (needsDto)
         {
             usings.Append("using System.Net.Http.Json;\n");
-            // Guard DTO using against CS0105/CS8019 under TreatWarningsAsErrors when namespaces collide.
-            if (!string.Equals(dtoNs, testsNs, StringComparison.Ordinal))
+            // Guard contract using against CS0105/CS8019 under TreatWarningsAsErrors when namespaces collide.
+            if (!string.Equals(contractNs, testsNs, StringComparison.Ordinal))
             {
-                usings.Append($"using {dtoNs};\n");
+                usings.Append($"using {contractNs};\n");
             }
         }
 
@@ -445,7 +463,7 @@ public static class TestsProjectEmitter
             body.Append("    public async System.Threading.Tasks.Task Post_returns_success_with_valid_payload()\n");
             body.Append("    {\n");
             body.Append("        using var client = _factory.CreateClient();\n");
-            body.Append($"        var dto = new Create{entity}Dto\n");
+            body.Append($"        var dto = new Create{entity}{writeSuffix}\n");
             body.Append("        {\n");
             body.Append(initializerBody.Length == 0 ? "\n" : initializerBody);
             body.Append("        };\n");
@@ -461,7 +479,7 @@ public static class TestsProjectEmitter
             body.Append("    public async System.Threading.Tasks.Task Put_returns_404_when_id_missing()\n");
             body.Append("    {\n");
             body.Append("        using var client = _factory.CreateClient();\n");
-            body.Append($"        var dto = new Update{entity}Dto\n");
+            body.Append($"        var dto = new Update{entity}{writeSuffix}\n");
             body.Append("        {\n");
             body.Append(initializerBody.Length == 0 ? "\n" : initializerBody);
             body.Append("        };\n");
@@ -477,7 +495,7 @@ public static class TestsProjectEmitter
             body.Append("    public async System.Threading.Tasks.Task Patch_returns_404_when_id_missing()\n");
             body.Append("    {\n");
             body.Append("        using var client = _factory.CreateClient();\n");
-            body.Append($"        var dto = new Update{entity}Dto\n");
+            body.Append($"        var dto = new Update{entity}{writeSuffix}\n");
             body.Append("        {\n");
             body.Append(initializerBody.Length == 0 ? "\n" : initializerBody);
             body.Append("        };\n");

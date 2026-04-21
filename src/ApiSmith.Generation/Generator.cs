@@ -80,6 +80,15 @@ public sealed class Generator
         yield return ValidationResultEmitter.Emit(config, layout);
         if (ValidationErrorEmitter.Emit(config, layout) is { } vee) yield return vee;
         if (ApiProblemEmitter.Emit(config, layout) is { } apee) yield return apee;
+        if (PagedResponseEmitter.Emit(config, layout) is { } pr) yield return pr;
+        foreach (var f in RequestEmitter.Emit(config, layout, named))
+        {
+            yield return f;
+        }
+        foreach (var f in ResponseEmitter.Emit(config, layout, named))
+        {
+            yield return f;
+        }
         yield return ApiSmithConfigEmitter.Emit(config, layout);
 
         foreach (var file in AppSettingsEmitter.Emit(config, layout))

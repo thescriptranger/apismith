@@ -46,6 +46,15 @@ public static class MinimalApiEndpointEmitter
         {
             usings.Add("System.Collections.Immutable");
             usings.Add(layout.SharedErrorsNamespace(config));
+            // Request types live under `<Shared>.Requests[.<Schema>]`; non-view tables reference them in Create/Update.
+            if (table.PrimaryKey is not null)
+            {
+                usings.Add(layout.RequestNamespace(config, table.Schema));
+            }
+            // Response types live under `<Shared>.Responses[.<Schema>]`.
+            usings.Add(layout.ResponseNamespace(config, table.Schema));
+            // PagedResponse<T> lives at the root of `<Shared>.Responses`.
+            usings.Add($"{layout.SharedNamespace(config)}.Responses");
         }
 
         var sb = new StringBuilder();
@@ -100,6 +109,18 @@ public static class MinimalApiEndpointEmitter
 
     private static void EmitListHandler(StringBuilder sb, ApiSmithConfig config, NamedTable table, string dbset, string repoType)
     {
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            EmitListHandlerV2(sb, config, table, dbset, repoType);
+        }
+        else
+        {
+            EmitListHandlerV1(sb, config, table, dbset, repoType);
+        }
+    }
+
+    private static void EmitListHandlerV1(StringBuilder sb, ApiSmithConfig config, NamedTable table, string dbset, string repoType)
+    {
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
             sb.AppendLine($"        group.MapGet(\"/\", async ({config.ProjectName}DbContext db, CancellationToken ct) =>");
@@ -120,8 +141,53 @@ public static class MinimalApiEndpointEmitter
         }
     }
 
+    private static void EmitListHandlerV2(StringBuilder sb, ApiSmithConfig config, NamedTable table, string dbset, string repoType)
+    {
+        var entity = table.EntityName;
+        if (config.DataAccess is DataAccessStyle.EfCore)
+        {
+            sb.AppendLine($"        group.MapGet(\"/\", async (int page, int pageSize, {config.ProjectName}DbContext db, CancellationToken ct) =>");
+            sb.AppendLine("        {");
+            sb.AppendLine("            if (page < 1) { page = 1; }");
+            sb.AppendLine("            if (pageSize < 1) { pageSize = 50; }");
+            sb.AppendLine($"            // Extension point: chain filter/sort onto this IQueryable<{entity}>.");
+            sb.AppendLine($"            IQueryable<{entity}> query = db.{dbset}.AsNoTracking();");
+            sb.AppendLine("            var totalCount = await query.CountAsync(ct).ConfigureAwait(false);");
+            sb.AppendLine("            var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct).ConfigureAwait(false);");
+            sb.AppendLine($"            return Results.Ok(new PagedResponse<{entity}Response>");
+            sb.AppendLine("            {");
+            sb.AppendLine("                Items = items.Select(e => e.ToResponse()).ToList(),");
+            sb.AppendLine("                Page = page,");
+            sb.AppendLine("                PageSize = pageSize,");
+            sb.AppendLine("                TotalCount = totalCount,");
+            sb.AppendLine("            });");
+            sb.AppendLine("        });");
+        }
+        else
+        {
+            sb.AppendLine($"        group.MapGet(\"/\", async (int page, int pageSize, {repoType} repo, CancellationToken ct) =>");
+            sb.AppendLine("        {");
+            sb.AppendLine("            if (page < 1) { page = 1; }");
+            sb.AppendLine("            if (pageSize < 1) { pageSize = 50; }");
+            sb.AppendLine("            // Known limitation: Dapper IXRepository.ListAsync returns all rows; slicing happens client-side.");
+            sb.AppendLine("            // If IXRepository gains paging, replace the slice with a server-side fetch.");
+            sb.AppendLine("            var all = await repo.ListAsync(ct).ConfigureAwait(false);");
+            sb.AppendLine("            var totalCount = all.Count;");
+            sb.AppendLine("            var items = all.Skip((page - 1) * pageSize).Take(pageSize).ToList();");
+            sb.AppendLine($"            return Results.Ok(new PagedResponse<{entity}Response>");
+            sb.AppendLine("            {");
+            sb.AppendLine("                Items = items.Select(e => e.ToResponse()).ToList(),");
+            sb.AppendLine("                Page = page,");
+            sb.AppendLine("                PageSize = pageSize,");
+            sb.AppendLine("                TotalCount = totalCount,");
+            sb.AppendLine("            });");
+            sb.AppendLine("        });");
+        }
+    }
+
     private static void EmitGetByIdHandler(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string dbset)
     {
+        var toDtoOrResponse = config.ApiVersion == ApiVersion.V2 ? "ToResponse" : "ToDto";
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
             sb.AppendLine();
@@ -129,7 +195,7 @@ public static class MinimalApiEndpointEmitter
             sb.AppendLine("        {");
             sb.AppendLine($"            var entity = await db.{dbset}.AsNoTracking()");
             sb.AppendLine($"                .FirstOrDefaultAsync(e => e.{pk.PropertyName} == id, ct).ConfigureAwait(false);");
-            sb.AppendLine("            return entity is null ? Results.NotFound() : Results.Ok(entity.ToDto());");
+            sb.AppendLine($"            return entity is null ? Results.NotFound() : Results.Ok(entity.{toDtoOrResponse}());");
             sb.AppendLine("        });");
         }
         else
@@ -138,7 +204,7 @@ public static class MinimalApiEndpointEmitter
             sb.AppendLine($"        group.MapGet(\"/{{id}}\", async ({pk.ClrTypeName} id, {repoType} repo, CancellationToken ct) =>");
             sb.AppendLine("        {");
             sb.AppendLine("            var entity = await repo.GetByIdAsync(id, ct).ConfigureAwait(false);");
-            sb.AppendLine("            return entity is null ? Results.NotFound() : Results.Ok(entity.ToDto());");
+            sb.AppendLine($"            return entity is null ? Results.NotFound() : Results.Ok(entity.{toDtoOrResponse}());");
             sb.AppendLine("        });");
         }
     }
@@ -146,6 +212,18 @@ public static class MinimalApiEndpointEmitter
     private static void EmitCreateHandler(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string dbset)
     {
         sb.AppendLine();
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            EmitCreateHandlerV2(sb, config, table, pk, dbCtx, repoType, dbset);
+        }
+        else
+        {
+            EmitCreateHandlerV1(sb, config, table, pk, dbCtx, repoType, dbset);
+        }
+    }
+
+    private static void EmitCreateHandlerV1(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string dbset)
+    {
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
             sb.AppendLine($"        group.MapPost(\"/\", async (Create{table.EntityName}Dto dto, {dbCtx} db, IValidator<Create{table.EntityName}Dto> validator, CancellationToken ct) =>");
@@ -172,9 +250,50 @@ public static class MinimalApiEndpointEmitter
         }
     }
 
+    private static void EmitCreateHandlerV2(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string dbset)
+    {
+        var entity = table.EntityName;
+        if (config.DataAccess is DataAccessStyle.EfCore)
+        {
+            sb.AppendLine($"        group.MapPost(\"/\", async (Create{entity}Request request, {dbCtx} db, IValidator<Create{entity}Request> validator, CancellationToken ct) =>");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var validation = validator.Validate(request);");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
+            sb.AppendLine();
+            sb.AppendLine("            var entity = request.ToEntity();");
+            sb.AppendLine($"            db.{dbset}.Add(entity);");
+            sb.AppendLine("            await db.SaveChangesAsync(ct).ConfigureAwait(false);");
+            sb.AppendLine($"            return Results.Created($\"{VersioningEmitter.MinimalApiGroupPrefix(config)}/{table.RouteSegment}/{{entity.{pk.PropertyName}}}\", entity.ToResponse());");
+            sb.AppendLine("        });");
+        }
+        else
+        {
+            sb.AppendLine($"        group.MapPost(\"/\", async (Create{entity}Request request, {repoType} repo, IValidator<Create{entity}Request> validator, CancellationToken ct) =>");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var validation = validator.Validate(request);");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
+            sb.AppendLine();
+            sb.AppendLine("            var entity = await repo.CreateAsync(request.ToEntity(), ct).ConfigureAwait(false);");
+            sb.AppendLine($"            return Results.Created($\"{VersioningEmitter.MinimalApiGroupPrefix(config)}/{table.RouteSegment}/{{entity.{pk.PropertyName}}}\", entity.ToResponse());");
+            sb.AppendLine("        });");
+        }
+    }
+
     private static void EmitUpdateHandler(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string mapMethod, string label, string dbset)
     {
         sb.AppendLine();
+        if (config.ApiVersion == ApiVersion.V2)
+        {
+            EmitUpdateHandlerV2(sb, config, table, pk, dbCtx, repoType, mapMethod, dbset);
+        }
+        else
+        {
+            EmitUpdateHandlerV1(sb, config, table, pk, dbCtx, repoType, mapMethod, dbset);
+        }
+    }
+
+    private static void EmitUpdateHandlerV1(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string mapMethod, string dbset)
+    {
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
             sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{table.EntityName}Dto dto, {dbCtx} db, IValidator<Update{table.EntityName}Dto> validator, CancellationToken ct) =>");
@@ -199,6 +318,39 @@ public static class MinimalApiEndpointEmitter
             sb.AppendLine("            var entity = await repo.GetByIdAsync(id, ct).ConfigureAwait(false);");
             sb.AppendLine("            if (entity is null) { return Results.NotFound(); }");
             sb.AppendLine("            entity.UpdateFromDto(dto);");
+            sb.AppendLine("            await repo.UpdateAsync(entity, ct).ConfigureAwait(false);");
+            sb.AppendLine("            return Results.NoContent();");
+            sb.AppendLine("        });");
+        }
+    }
+
+    private static void EmitUpdateHandlerV2(StringBuilder sb, ApiSmithConfig config, NamedTable table, NamedColumn pk, string dbCtx, string repoType, string mapMethod, string dbset)
+    {
+        var entity = table.EntityName;
+        if (config.DataAccess is DataAccessStyle.EfCore)
+        {
+            sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{entity}Request request, {dbCtx} db, IValidator<Update{entity}Request> validator, CancellationToken ct) =>");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var validation = validator.Validate(request);");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
+            sb.AppendLine();
+            sb.AppendLine($"            var entity = await db.{dbset}.FindAsync(new object[] {{ id }}, ct).ConfigureAwait(false);");
+            sb.AppendLine("            if (entity is null) { return Results.NotFound(); }");
+            sb.AppendLine("            entity.UpdateFromRequest(request);");
+            sb.AppendLine("            await db.SaveChangesAsync(ct).ConfigureAwait(false);");
+            sb.AppendLine("            return Results.NoContent();");
+            sb.AppendLine("        });");
+        }
+        else
+        {
+            sb.AppendLine($"        group.{mapMethod}(\"/{{id}}\", async ({pk.ClrTypeName} id, Update{entity}Request request, {repoType} repo, IValidator<Update{entity}Request> validator, CancellationToken ct) =>");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var validation = validator.Validate(request);");
+            AppendBadRequestIfInvalid(sb, config, indent: "            ");
+            sb.AppendLine();
+            sb.AppendLine("            var entity = await repo.GetByIdAsync(id, ct).ConfigureAwait(false);");
+            sb.AppendLine("            if (entity is null) { return Results.NotFound(); }");
+            sb.AppendLine("            entity.UpdateFromRequest(request);");
             sb.AppendLine("            await repo.UpdateAsync(entity, ct).ConfigureAwait(false);");
             sb.AppendLine("            return Results.NoContent();");
             sb.AppendLine("        });");

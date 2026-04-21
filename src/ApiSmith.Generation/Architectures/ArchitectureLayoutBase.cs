@@ -125,6 +125,19 @@ public abstract class ArchitectureLayoutBase : IArchitectureLayout
     public virtual string SharedNamespace(ApiSmithConfig c) => $"{c.ProjectName}.Shared";
     public virtual string SharedErrorsNamespace(ApiSmithConfig c) => $"{c.ProjectName}.Shared.Errors";
 
+    // Shared wire contracts (apiVersion: v2). Requests carry DataAnnotations; Responses don't.
+    public virtual string RequestPath(ApiSmithConfig c, string schema, string fileName) =>
+        $"{SharedProjectFolder(c)}/Requests{SchemaFolderSegment(c, schema)}/{fileName}.cs";
+
+    public virtual string RequestNamespace(ApiSmithConfig c, string schema) =>
+        $"{SharedNamespace(c)}.Requests{SchemaNamespaceSegment(c, schema)}";
+
+    public virtual string ResponsePath(ApiSmithConfig c, string schema, string fileName) =>
+        $"{SharedProjectFolder(c)}/Responses{SchemaFolderSegment(c, schema)}/{fileName}.cs";
+
+    public virtual string ResponseNamespace(ApiSmithConfig c, string schema) =>
+        $"{SharedNamespace(c)}.Responses{SchemaNamespaceSegment(c, schema)}";
+
     public virtual ProjectDefinition SharedProject(ApiSmithConfig config)
     {
         var name = SharedProjectAssemblyName(config);

@@ -115,9 +115,20 @@ Every emitted project sets `TreatWarningsAsErrors=true` and `Nullable=enable`. I
 
 ## Shared contracts project
 
-New scaffolds default to `apiVersion: v2`, which emits a `<Name>.Shared` class-library project alongside the server. It holds DTOs (with DataAnnotations attributes), C# enums derived from `CHECK IN` constraints, and typed error responses (`ValidationError`, `ApiProblem`). BCL-only — no `Microsoft.AspNetCore.*` dependency — so it packs cleanly as a NuGet for pure-console clients.
+New scaffolds default to `apiVersion: v2`, which emits a `<Name>.Shared` class-library project holding the API's wire contracts:
 
-Existing configs stay on `apiVersion: v1` (no Shared project, DTOs in the server assembly). To adopt v2 on an existing scaffold, edit the `apismith.yaml` line to `apiVersion: v2` and rerun.
+- **`Requests/`** — `Create<Entity>Request` and `Update<Entity>Request` with DataAnnotations (`[Required]`, `[StringLength]`, `[Range]`).
+- **`Responses/`** — `<Entity>Response` (no attributes) plus a generic `PagedResponse<T>` envelope.
+- **`Enums/`** — C# enums derived from `CHECK IN` constraints.
+- **`Errors/`** — `ValidationError` and `ApiProblem` for typed 400 responses.
+
+BCL-only — no `Microsoft.AspNetCore.*` dependency — so it packs cleanly as a NuGet for pure-console clients.
+
+Server-side Dtos (the Application-layer working model) live at their conventional location (e.g. `src/<Name>/Dtos/` for Flat, `src/<Name>.Application/Dtos/` for Clean) and are distinct from the Request/Response wire contracts. Mappers hand-roll the two hops Entity ↔ Dto and Dto ↔ Response, with partial `OnMapped` hooks users can extend in sibling files.
+
+List endpoints paginate by default with `page=1`, `pageSize=50`. Pass `?pageSize=1000` (or whatever) for larger pages.
+
+Existing configs stay on `apiVersion: v1` (no Shared project, DTOs in the server assembly, flat lists). To adopt v2 on an existing scaffold, edit the `apismith.yaml` line to `apiVersion: v2` and rerun.
 
 ## Architectures
 
@@ -145,7 +156,7 @@ Identical HTTP surface; the same smoke tests pass against either.
 
 ## Validation
 
-One validator per Create/Update DTO. Imperative, debuggable, no attributes:
+One validator per Create/Update type. Imperative, debuggable, no attributes. Under v2 the validators target Request types (`CreatePostRequestValidator` etc.); under v1 they continue to validate Dtos.
 
 ```csharp
 public sealed class CreatePostDtoValidator
@@ -184,6 +195,8 @@ Endpoints call the validator first and return `400 Bad Request` with the error l
 
 Hand-written extension methods per entity. No AutoMapper. No Mapster. No reflection.
 
+Under v1, mappers hop between Entity and Dto:
+
 ```csharp
 public static class PostMappings
 {
@@ -192,6 +205,8 @@ public static class PostMappings
     public static void UpdateFromDto(this Post entity, UpdatePostDto dto) { /* ... */ }
 }
 ```
+
+Under v2, mappers hand-roll two hops — Entity ↔ Dto (server working model) and Dto ↔ Response/Request (wire contracts) — with partial `OnMapped` hooks users can extend in sibling files.
 
 ## Auth
 

@@ -45,16 +45,15 @@ public sealed class VerticalSliceLayout : ArchitectureLayoutBase
 
     public override string DtoPath(ApiSmithConfig c, string schema, string fileName)
     {
-        if (c.ApiVersion == ApiVersion.V2)
-        {
-            return $"{SharedProjectFolder(c)}/Dtos{SchemaFolderSegment(c, schema)}/{fileName}.cs";
-        }
         var entity = fileName.EndsWith("Dtos", System.StringComparison.Ordinal) ? fileName[..^4] : fileName;
         return $"{ApiProjectFolder(c)}/Features/{Naming.Pluralizer.Pluralize(entity)}/{fileName}.cs";
     }
 
-    public override string ValidatorPath(ApiSmithConfig c, string schema, string entityName) =>
-        $"{ApiProjectFolder(c)}/Features/{Naming.Pluralizer.Pluralize(entityName)}/{entityName}DtoValidators.cs";
+    public override string ValidatorPath(ApiSmithConfig c, string schema, string entityName)
+    {
+        var suffix = c.ApiVersion == ApiVersion.V2 ? "Validators" : "DtoValidators";
+        return $"{ApiProjectFolder(c)}/Features/{Naming.Pluralizer.Pluralize(entityName)}/{entityName}{suffix}.cs";
+    }
 
     public override string ValidationCorePath(ApiSmithConfig c) =>
         $"{ApiProjectFolder(c)}/Shared/ValidationResult.cs";
@@ -82,9 +81,7 @@ public sealed class VerticalSliceLayout : ArchitectureLayoutBase
 
     public override string EntityNamespace(ApiSmithConfig c, string schema)    => $"{c.ProjectName}.Features";
     public override string DtoNamespace(ApiSmithConfig c, string schema) =>
-        c.ApiVersion == ApiVersion.V2
-            ? $"{SharedNamespace(c)}.Dtos{SchemaNamespaceSegment(c, schema)}"
-            : $"{c.ProjectName}.Features";
+        $"{c.ProjectName}.Features";
     public override string ValidatorNamespace(ApiSmithConfig c, string schema) => $"{c.ProjectName}.Features";
     public override string MapperNamespace(ApiSmithConfig c, string schema)    => $"{c.ProjectName}.Features";
     public override string ValidatorCoreNamespace(ApiSmithConfig c)            => $"{c.ProjectName}.Features";

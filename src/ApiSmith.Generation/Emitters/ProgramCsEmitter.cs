@@ -60,7 +60,14 @@ public static class ProgramCsEmitter
                 {
                     continue; // fully qualified at the call site — no using needed
                 }
-                usings.Add(layout.DtoNamespace(config, t.Schema));
+                if (config.ApiVersion == ApiVersion.V2)
+                {
+                    usings.Add(layout.RequestNamespace(config, t.Schema));
+                }
+                else
+                {
+                    usings.Add(layout.DtoNamespace(config, t.Schema));
+                }
                 usings.Add(layout.ValidatorNamespace(config, t.Schema));
             }
         }
@@ -155,16 +162,13 @@ public static class ProgramCsEmitter
             var registerUpdate = (crud & (CrudOperations.Put | CrudOperations.Patch)) != 0;
             foreach (var t in validatedTables)
             {
-                var qualify = collidedValidatorEntities.Contains(t.EntityName);
-                var dtoPrefix = qualify ? layout.DtoNamespace(config, t.Schema) + "." : string.Empty;
-                var valPrefix = qualify ? layout.ValidatorNamespace(config, t.Schema) + "." : string.Empty;
-                if (registerCreate)
+                if (config.ApiVersion == ApiVersion.V2)
                 {
-                    sb.AppendLine($"builder.Services.AddScoped<IValidator<{dtoPrefix}Create{t.EntityName}Dto>, {valPrefix}Create{t.EntityName}DtoValidator>();");
+                    EmitV2Registrations(sb, layout, config, t, collidedValidatorEntities, registerCreate, registerUpdate);
                 }
-                if (registerUpdate)
+                else
                 {
-                    sb.AppendLine($"builder.Services.AddScoped<IValidator<{dtoPrefix}Update{t.EntityName}Dto>, {valPrefix}Update{t.EntityName}DtoValidator>();");
+                    EmitV1Registrations(sb, layout, config, t, collidedValidatorEntities, registerCreate, registerUpdate);
                 }
             }
         }
@@ -210,6 +214,50 @@ public static class ProgramCsEmitter
         sb.AppendLine("public partial class Program { }");
 
         return new EmittedFile(layout.ProgramPath(config), sb.ToString());
+    }
+
+    private static void EmitV1Registrations(
+        StringBuilder sb,
+        IArchitectureLayout layout,
+        ApiSmithConfig config,
+        NamedTable t,
+        HashSet<string> collidedValidatorEntities,
+        bool registerCreate,
+        bool registerUpdate)
+    {
+        var qualify = collidedValidatorEntities.Contains(t.EntityName);
+        var dtoPrefix = qualify ? layout.DtoNamespace(config, t.Schema) + "." : string.Empty;
+        var valPrefix = qualify ? layout.ValidatorNamespace(config, t.Schema) + "." : string.Empty;
+        if (registerCreate)
+        {
+            sb.AppendLine($"builder.Services.AddScoped<IValidator<{dtoPrefix}Create{t.EntityName}Dto>, {valPrefix}Create{t.EntityName}DtoValidator>();");
+        }
+        if (registerUpdate)
+        {
+            sb.AppendLine($"builder.Services.AddScoped<IValidator<{dtoPrefix}Update{t.EntityName}Dto>, {valPrefix}Update{t.EntityName}DtoValidator>();");
+        }
+    }
+
+    private static void EmitV2Registrations(
+        StringBuilder sb,
+        IArchitectureLayout layout,
+        ApiSmithConfig config,
+        NamedTable t,
+        HashSet<string> collidedValidatorEntities,
+        bool registerCreate,
+        bool registerUpdate)
+    {
+        var qualify = collidedValidatorEntities.Contains(t.EntityName);
+        var reqPrefix = qualify ? layout.RequestNamespace(config, t.Schema) + "." : string.Empty;
+        var valPrefix = qualify ? layout.ValidatorNamespace(config, t.Schema) + "." : string.Empty;
+        if (registerCreate)
+        {
+            sb.AppendLine($"builder.Services.AddScoped<IValidator<{reqPrefix}Create{t.EntityName}Request>, {valPrefix}Create{t.EntityName}RequestValidator>();");
+        }
+        if (registerUpdate)
+        {
+            sb.AppendLine($"builder.Services.AddScoped<IValidator<{reqPrefix}Update{t.EntityName}Request>, {valPrefix}Update{t.EntityName}RequestValidator>();");
+        }
     }
 
     /// <summary>Tables that get a pair of validators — write-enabled, non-view, with a primary key.</summary>

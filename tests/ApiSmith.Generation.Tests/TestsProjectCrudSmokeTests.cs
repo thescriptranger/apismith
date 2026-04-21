@@ -41,6 +41,29 @@ public sealed class TestsProjectCrudSmokeTests
     }
 
     [Fact]
+    public void V2_tests_project_references_requests_and_responses()
+    {
+        var (config, output) = Setup("TP1");
+        config.ApiVersion = ApiVersion.V2;
+        config.IncludeTestsProject = true;
+        var graph = SchemaGraphFixtures.SmallBlog();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            var endpTest = File.ReadAllText(Path.Combine(output, "tests", "TP1.IntegrationTests", "Endpoints", "PostsEndpointTests.cs"));
+            Assert.Contains("CreatePostRequest", endpTest);
+            Assert.Contains("UpdatePostRequest", endpTest);
+            Assert.DoesNotContain("CreatePostDto", endpTest);
+
+            var valTest = File.ReadAllText(Path.Combine(output, "tests", "TP1.IntegrationTests", "Validators", "PostValidatorTests.cs"));
+            Assert.Contains("CreatePostRequestValidator", valTest);
+            Assert.Contains("new CreatePostRequest", valTest);
+        }
+        finally { CleanupBestEffort(output); }
+    }
+
+    [Fact]
     public void Only_getlist_flag_emits_legacy_byte_identical_output()
     {
         var (config, output) = Setup("GetListOnlyTests");
