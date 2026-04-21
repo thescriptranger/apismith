@@ -169,7 +169,7 @@ public static class ControllerEmitter
         {
             sb.AppendLine("[Authorize]");
         }
-        sb.AppendLine($"public sealed class {table.CollectionName}Controller : ControllerBase");
+        sb.AppendLine($"public sealed partial class {table.CollectionName}Controller : ControllerBase");
         sb.AppendLine("{");
         sb.AppendLine($"    private readonly {dbCtx} _db;");
         if (injectCreate)
@@ -193,6 +193,7 @@ public static class ControllerEmitter
             sb.AppendLine("        if (pageSize < 1) { pageSize = 50; }");
             sb.AppendLine($"        // Extension point: chain filter/sort onto this IQueryable<{entity}>.");
             sb.AppendLine($"        IQueryable<{entity}> query = _db.{dbset}.AsNoTracking();");
+            sb.AppendLine("        ConfigureListQuery(ref query);");
             sb.AppendLine("        var totalCount = await query.CountAsync(ct).ConfigureAwait(false);");
             sb.AppendLine("        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct).ConfigureAwait(false);");
             sb.AppendLine($"        return Ok(new PagedResponse<{entity}Response>");
@@ -250,6 +251,8 @@ public static class ControllerEmitter
             sb.AppendLine("    }");
         }
 
+        sb.AppendLine();
+        sb.AppendLine($"    static partial void ConfigureListQuery(ref IQueryable<{entity}> query);");
         sb.AppendLine("}");
         return new EmittedFile(layout.ControllerPath(config, table.CollectionName), sb.ToString());
     }

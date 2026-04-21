@@ -95,6 +95,7 @@ public sealed class Generator
         {
             yield return file;
         }
+        yield return LaunchSettingsEmitter.Emit(config, layout);
 
         foreach (var file in RepoHygieneEmitter.Emit(config, layout))
         {

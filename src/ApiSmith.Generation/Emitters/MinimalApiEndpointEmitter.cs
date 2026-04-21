@@ -65,7 +65,7 @@ public static class MinimalApiEndpointEmitter
         sb.AppendLine();
         sb.AppendLine($"namespace {ns};");
         sb.AppendLine();
-        sb.AppendLine($"public static class {collection}Endpoints");
+        sb.AppendLine($"public static partial class {collection}Endpoints");
         sb.AppendLine("{");
         sb.AppendLine($"    public static IEndpointRouteBuilder Map{collection}Endpoints(this IEndpointRouteBuilder app)");
         sb.AppendLine("    {");
@@ -102,6 +102,13 @@ public static class MinimalApiEndpointEmitter
         sb.AppendLine();
         sb.AppendLine("        return app;");
         sb.AppendLine("    }");
+        if (config.ApiVersion == ApiVersion.V2
+            && config.DataAccess is DataAccessStyle.EfCore
+            && table.PrimaryKey is not null)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"    static partial void ConfigureListQuery(ref IQueryable<{entity}> query);");
+        }
         sb.AppendLine("}");
 
         return new EmittedFile(layout.MinimalApiEndpointPath(config, collection), sb.ToString());
@@ -146,12 +153,13 @@ public static class MinimalApiEndpointEmitter
         var entity = table.EntityName;
         if (config.DataAccess is DataAccessStyle.EfCore)
         {
-            sb.AppendLine($"        group.MapGet(\"/\", async (int page, int pageSize, {config.ProjectName}DbContext db, CancellationToken ct) =>");
+            sb.AppendLine($"        group.MapGet(\"/\", async ({config.ProjectName}DbContext db, CancellationToken ct, int page = 1, int pageSize = 50) =>");
             sb.AppendLine("        {");
             sb.AppendLine("            if (page < 1) { page = 1; }");
             sb.AppendLine("            if (pageSize < 1) { pageSize = 50; }");
             sb.AppendLine($"            // Extension point: chain filter/sort onto this IQueryable<{entity}>.");
             sb.AppendLine($"            IQueryable<{entity}> query = db.{dbset}.AsNoTracking();");
+            sb.AppendLine("            ConfigureListQuery(ref query);");
             sb.AppendLine("            var totalCount = await query.CountAsync(ct).ConfigureAwait(false);");
             sb.AppendLine("            var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct).ConfigureAwait(false);");
             sb.AppendLine($"            return Results.Ok(new PagedResponse<{entity}Response>");
@@ -165,7 +173,7 @@ public static class MinimalApiEndpointEmitter
         }
         else
         {
-            sb.AppendLine($"        group.MapGet(\"/\", async (int page, int pageSize, {repoType} repo, CancellationToken ct) =>");
+            sb.AppendLine($"        group.MapGet(\"/\", async ({repoType} repo, CancellationToken ct, int page = 1, int pageSize = 50) =>");
             sb.AppendLine("        {");
             sb.AppendLine("            if (page < 1) { page = 1; }");
             sb.AppendLine("            if (pageSize < 1) { pageSize = 50; }");

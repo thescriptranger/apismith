@@ -121,8 +121,8 @@ public sealed class ControllerShapeV2Tests
             new Generator(new NullLog()).Generate(config, graph, output);
             var endp = File.ReadAllText(Path.Combine(output, "src", "Min1", "Endpoints", "PostsEndpoints.cs"));
             Assert.Contains("PagedResponse<PostResponse>", endp);
-            Assert.Contains("int page", endp);
-            Assert.Contains("int pageSize", endp);
+            // Defaults are required so a query-less GET /api/... doesn't fail parameter binding.
+            Assert.Contains("int page = 1, int pageSize = 50", endp);
             Assert.Contains("CreatePostRequest", endp);
             Assert.Contains("IValidator<CreatePostRequest>", endp);
         }
