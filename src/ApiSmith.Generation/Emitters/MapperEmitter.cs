@@ -126,6 +126,17 @@ public static class MapperEmitter
         Add(responseNs);
         if (enumsNs is not null) { Add(enumsNs); }
 
+        if (ShouldEmitChildCollections(config, table))
+        {
+            foreach (var nav in table.CollectionNavigations)
+            {
+                // Child entity namespace — for the `Enumerable.Empty<Post>()` type reference.
+                Add(layout.EntityNamespace(config, nav.SourceSchema));
+                // Child response namespace — needed when child is in a different schema.
+                Add(layout.ResponseNamespace(config, nav.SourceSchema));
+            }
+        }
+
         foreach (var ns in usings)
         {
             sb.AppendLine($"using {ns};");
@@ -210,7 +221,30 @@ public static class MapperEmitter
         sb.AppendLine();
 
         // 5. Convenience — Entity → Response
-        sb.AppendLine($"    public static {entity}Response ToResponse(this {entity} entity) => entity.ToDto().ToResponse();");
+        if (ShouldEmitChildCollections(config, table))
+        {
+            sb.AppendLine($"    public static {entity}Response ToResponse(this {entity} entity)");
+            sb.AppendLine("    {");
+            sb.AppendLine($"        var dto = entity.ToDto();");
+            sb.AppendLine($"        var response = new {entity}Response");
+            sb.AppendLine("        {");
+            foreach (var c in table.Columns)
+            {
+                sb.AppendLine($"            {c.PropertyName} = dto.{c.PropertyName},");
+            }
+            foreach (var nav in table.CollectionNavigations)
+            {
+                sb.AppendLine($"            {nav.Name} = (entity.{nav.Name} ?? System.Linq.Enumerable.Empty<{nav.SourceEntityName}>()).Select(x => x.ToResponse()).ToList(),");
+            }
+            sb.AppendLine("        };");
+            sb.AppendLine("        OnMapped(dto, response);");
+            sb.AppendLine("        return response;");
+            sb.AppendLine("    }");
+        }
+        else
+        {
+            sb.AppendLine($"    public static {entity}Response ToResponse(this {entity} entity) => entity.ToDto().ToResponse();");
+        }
         sb.AppendLine();
 
         sb.AppendLine($"    static partial void OnMapped({entity} entity, {entity}Dto dto);");
@@ -226,4 +260,10 @@ public static class MapperEmitter
                    !string.Equals(schema, "dbo", System.StringComparison.OrdinalIgnoreCase);
         return emit ? "." + ApiSmith.Naming.SchemaSegment.ToPascal(schema) : string.Empty;
     }
+
+    private static bool ShouldEmitChildCollections(ApiSmithConfig config, NamedTable table) =>
+        config.IncludeChildCollectionsInResponses
+        && !table.IsView
+        && !table.IsJoinTable
+        && table.CollectionNavigations.Length > 0;
 }

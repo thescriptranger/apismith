@@ -127,6 +127,12 @@ public sealed class WizardRunner
             Default = false,
         }.Ask(_io);
 
+        var includeChildCollections = new ConfirmPrompt
+        {
+            Label = "Include one-to-many child collections in response payloads? (depth = 1)",
+            Default = false,
+        }.Ask(_io);
+
         var connection = new TextPrompt
         {
             Label = "SQL Server connection string",
@@ -150,6 +156,7 @@ public sealed class WizardRunner
             IncludeTestsProject = tests,
             IncludeDockerAssets = docker,
             PartitionStoredProceduresBySchema = partitionSprocs,
+            IncludeChildCollectionsInResponses = includeChildCollections,
             ConnectionString = connection,
         };
     }

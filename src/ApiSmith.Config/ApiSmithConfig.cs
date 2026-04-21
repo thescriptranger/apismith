@@ -69,4 +69,7 @@ public sealed class ApiSmithConfig
 
     /// <summary>When true, emits I&lt;Schema&gt;StoredProcedures / I&lt;Schema&gt;DbFunctions per schema instead of one fat interface.</summary>
     public bool PartitionStoredProceduresBySchema { get; set; } = false;
+
+    /// <summary>When true, GET read endpoints and their DTOs include one-to-many child collections (depth = 1).</summary>
+    public bool IncludeChildCollectionsInResponses { get; set; } = false;
 }

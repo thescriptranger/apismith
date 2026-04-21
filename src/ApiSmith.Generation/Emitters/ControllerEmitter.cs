@@ -192,7 +192,21 @@ public static class ControllerEmitter
             sb.AppendLine("        if (page < 1) { page = 1; }");
             sb.AppendLine("        if (pageSize < 1) { pageSize = 50; }");
             sb.AppendLine($"        // Extension point: chain filter/sort onto this IQueryable<{entity}>.");
-            sb.AppendLine($"        IQueryable<{entity}> query = _db.{dbset}.AsNoTracking();");
+            if (ShouldEmitChildCollections(config, table))
+            {
+                sb.AppendLine($"        IQueryable<{entity}> query = _db.{dbset}.AsNoTracking()");
+                for (int i = 0; i < table.CollectionNavigations.Length; i++)
+                {
+                    var nav = table.CollectionNavigations[i];
+                    var isLast = (i == table.CollectionNavigations.Length - 1);
+                    var suffix = isLast ? ";" : "";
+                    sb.AppendLine($"            .Include(x => x.{nav.Name}){suffix}");
+                }
+            }
+            else
+            {
+                sb.AppendLine($"        IQueryable<{entity}> query = _db.{dbset}.AsNoTracking();");
+            }
             sb.AppendLine("        ConfigureListQuery(ref query);");
             sb.AppendLine("        var totalCount = await query.CountAsync(ct).ConfigureAwait(false);");
             sb.AppendLine("        var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(ct).ConfigureAwait(false);");
@@ -213,6 +227,13 @@ public static class ControllerEmitter
             sb.AppendLine($"    public async Task<ActionResult<{entity}Response>> GetById({pk.ClrTypeName} id, CancellationToken ct)");
             sb.AppendLine("    {");
             sb.AppendLine($"        var entity = await _db.{dbset}.AsNoTracking()");
+            if (ShouldEmitChildCollections(config, table))
+            {
+                foreach (var nav in table.CollectionNavigations)
+                {
+                    sb.AppendLine($"            .Include(x => x.{nav.Name})");
+                }
+            }
             sb.AppendLine($"            .FirstOrDefaultAsync(e => e.{pk.PropertyName} == id, ct).ConfigureAwait(false);");
             sb.AppendLine("        return entity is null ? NotFound() : Ok(entity.ToResponse());");
             sb.AppendLine("    }");
@@ -755,4 +776,10 @@ public static class ControllerEmitter
         sb.AppendLine("}");
         return new EmittedFile(layout.ControllerPath(config, table.CollectionName), sb.ToString());
     }
+
+    private static bool ShouldEmitChildCollections(ApiSmithConfig config, NamedTable table) =>
+        config.IncludeChildCollectionsInResponses
+        && !table.IsView
+        && !table.IsJoinTable
+        && table.CollectionNavigations.Length > 0;
 }

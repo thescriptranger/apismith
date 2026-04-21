@@ -32,6 +32,7 @@ public static class YamlWriter
         WriteBool(sb, "validateForeignKeyReferences", config.ValidateForeignKeyReferences);
         WriteBool(sb, "emitRepositoryInterfaces", config.EmitRepositoryInterfaces);
         WriteBool(sb, "partitionStoredProceduresBySchema", config.PartitionStoredProceduresBySchema);
+        WriteBool(sb, "includeChildCollectionsInResponses", config.IncludeChildCollectionsInResponses);
 
         WriteCrud(sb, config.Crud);
         WriteList(sb, "schemas", config.Schemas);

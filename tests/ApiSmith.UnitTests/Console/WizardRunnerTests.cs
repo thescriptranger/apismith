@@ -22,6 +22,7 @@ public sealed class WizardRunnerTests
             "y",                                  // include tests
             "n",                                  // include Docker
             "n",                                   // partition sproc interfaces by schema
+            "n",                                   // include child collections in responses
             "Server=(local);Database=X;Trusted_Connection=True;");
 
         var config = new WizardRunner(io).GatherStaticChoices();
@@ -58,6 +59,7 @@ public sealed class WizardRunnerTests
             "y",                                  // include tests
             "n",                                  // include Docker
             "n",                                   // partition sproc interfaces by schema
+            "n",                                   // include child collections in responses
             "Server=(local);Database=X;Trusted_Connection=True;");
 
         var config = new WizardRunner(io).GatherStaticChoices();
@@ -110,6 +112,7 @@ public sealed class WizardRunnerTests
             "y",                                  // include tests
             "n",                                  // include Docker
             "n",                                   // partition sproc interfaces by schema
+            "n",                                   // include child collections in responses
             "Server=(local);Database=X;Trusted_Connection=True;",
         };
     }
@@ -131,6 +134,7 @@ public sealed class WizardRunnerTests
             "y",                                  // include tests
             "n",                                  // include Docker
             "n",                                   // partition sproc interfaces by schema
+            "n",                                   // include child collections in responses
             "Server=(local);Database=X;Trusted_Connection=True;",
         };
     }
@@ -175,6 +179,7 @@ public sealed class WizardRunnerTests
             "y",                                  // include tests
             "n",                                  // include Docker
             "y",                                  // partition sproc interfaces by schema
+            "n",                                   // include child collections in responses
             "Server=(local);Database=X;Trusted_Connection=True;",
         };
     }
@@ -196,6 +201,7 @@ public sealed class WizardRunnerTests
             "y",                                  // include tests
             "n",                                  // include Docker
             "",                                   // partition sproc interfaces by schema → default false
+            "",                                   // include child collections in responses → default false
             "Server=(local);Database=X;Trusted_Connection=True;",
         };
     }

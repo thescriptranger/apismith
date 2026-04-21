@@ -18,11 +18,28 @@ public static class ResponseEmitter
             var ns = layout.ResponseNamespace(config, table.Schema);
 
             var sb = new StringBuilder();
+            // Collect any extra usings (enums + nested-child response namespaces).
+            var extraUsings = new SortedSet<string>(System.StringComparer.Ordinal);
             if (HasAnyEnumColumn(table))
             {
-                sb.AppendLine($"using {layout.SharedNamespace(config)}.Enums{SegmentNamespace(config, table.Schema)};");
-                sb.AppendLine();
+                extraUsings.Add($"{layout.SharedNamespace(config)}.Enums{SegmentNamespace(config, table.Schema)}");
             }
+            if (ShouldEmitChildCollections(config, table))
+            {
+                foreach (var nav in table.CollectionNavigations)
+                {
+                    var childNs = layout.ResponseNamespace(config, nav.SourceSchema);
+                    if (!string.Equals(childNs, ns, System.StringComparison.Ordinal))
+                    {
+                        extraUsings.Add(childNs);
+                    }
+                }
+            }
+            foreach (var u in extraUsings)
+            {
+                sb.AppendLine($"using {u};");
+            }
+            if (extraUsings.Count > 0) sb.AppendLine();
             sb.AppendLine($"namespace {ns};");
             sb.AppendLine();
             sb.AppendLine($"public sealed class {table.EntityName}Response");
@@ -37,6 +54,13 @@ public static class ResponseEmitter
                 {
                     var initializer = !c.IsNullable && c.ClrTypeName == "string" ? " = string.Empty;" : string.Empty;
                     sb.AppendLine($"    public {c.ClrTypeWithNullability} {c.PropertyName} {{ get; set; }}{initializer}");
+                }
+            }
+            if (ShouldEmitChildCollections(config, table))
+            {
+                foreach (var nav in table.CollectionNavigations)
+                {
+                    sb.AppendLine($"    public IReadOnlyList<{nav.SourceEntityName}Response> {nav.Name} {{ get; init; }} = System.Array.Empty<{nav.SourceEntityName}Response>();");
                 }
             }
             sb.AppendLine("}");
@@ -60,4 +84,10 @@ public static class ResponseEmitter
         }
         return false;
     }
+
+    private static bool ShouldEmitChildCollections(ApiSmithConfig config, NamedTable table) =>
+        config.IncludeChildCollectionsInResponses
+        && !table.IsView
+        && !table.IsJoinTable
+        && table.CollectionNavigations.Length > 0;
 }

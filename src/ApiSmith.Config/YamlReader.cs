@@ -164,6 +164,9 @@ public static class YamlReader
             case "partitionStoredProceduresBySchema":
                 config.PartitionStoredProceduresBySchema = ParseBool(key, value);
                 break;
+            case "includeChildCollectionsInResponses":
+                config.IncludeChildCollectionsInResponses = ParseBool(key, value);
+                break;
             case "crud":
                 throw new YamlException("'crud' must be a list.");
             case "schemas":
