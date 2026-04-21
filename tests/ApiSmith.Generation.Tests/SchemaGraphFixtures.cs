@@ -58,6 +58,28 @@ internal static class SchemaGraphFixtures
         return SchemaGraph.Create(new[] { dbo });
     }
 
+    /// <summary>Table with two self-referencing FKs — the shape that exposed the multi-FK WithMany bug.</summary>
+    public static SchemaGraph SelfReferencingWithTwoFks()
+    {
+        var billingProfiles = Table.Create("dbo", "billing_profiles",
+            new[]
+            {
+                new Column("id",                         1, "int",      IsNullable: false, IsIdentity: true,  IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+                new Column("name",                       2, "nvarchar", IsNullable: false, IsIdentity: false, IsComputed: false, MaxLength: 100,  Precision: null, Scale: null, DefaultValue: null),
+                new Column("charges_bill_to_profile_id", 3, "int",      IsNullable: true,  IsIdentity: false, IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+                new Column("dues_bill_to_profile_id",    4, "int",      IsNullable: true,  IsIdentity: false, IsComputed: false, MaxLength: null, Precision: null, Scale: null, DefaultValue: null),
+            },
+            PrimaryKey.Create("PK_billing_profiles", new[] { "id" }),
+            foreignKeys: new[]
+            {
+                ForeignKey.Create("FK_bp_charges", "dbo", "billing_profiles", new[] { "charges_bill_to_profile_id" }, "dbo", "billing_profiles", new[] { "id" }),
+                ForeignKey.Create("FK_bp_dues",    "dbo", "billing_profiles", new[] { "dues_bill_to_profile_id" },    "dbo", "billing_profiles", new[] { "id" }),
+            });
+
+        var dbo = DbSchema.Create("dbo", new[] { billingProfiles });
+        return SchemaGraph.Create(new[] { dbo });
+    }
+
     /// <summary>One-to-many (user→posts) plus many-to-many via post_tags join table.</summary>
     public static SchemaGraph Relational()
     {

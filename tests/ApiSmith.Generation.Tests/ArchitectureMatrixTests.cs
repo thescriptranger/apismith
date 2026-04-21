@@ -105,6 +105,35 @@ public sealed class ArchitectureMatrixTests
         }
     }
 
+    [Theory]
+    [InlineData(ArchitectureStyle.Flat)]
+    [InlineData(ArchitectureStyle.Clean)]
+    [InlineData(ArchitectureStyle.Layered)]
+    [InlineData(ArchitectureStyle.Onion)]
+    [InlineData(ArchitectureStyle.VerticalSlice)]
+    public void V2_self_referencing_two_fks_scaffold_compiles(ArchitectureStyle arch)
+    {
+        if (System.Environment.GetEnvironmentVariable("APISMITH_SKIP_NESTED_BUILD") is { Length: > 0 })
+        {
+            return;
+        }
+
+        var (config, output) = Setup($"V2SelfRef{arch}");
+        config.ApiVersion = ApiVersion.V2;
+        config.Architecture = arch;
+        var graph = SchemaGraphFixtures.SelfReferencingWithTwoFks();
+
+        try
+        {
+            new Generator(new NullLog()).Generate(config, graph, output);
+            AssertCompiles(output, $"V2-SelfRef-{arch}");
+        }
+        finally
+        {
+            CleanupBestEffort(output);
+        }
+    }
+
     private static (ApiSmithConfig Config, string Output) Setup(string projectName)
     {
         var output = Path.Combine(

@@ -59,7 +59,7 @@ public static class DbContextEmitter
 
         foreach (var t in named.Tables.Concat(named.JoinTables))
         {
-            EmitEntityConfig(sb, config, layout, t, collidedEntityNames);
+            EmitEntityConfig(sb, config, layout, named, t, collidedEntityNames);
         }
 
         sb.AppendLine("        base.OnModelCreating(modelBuilder);");
@@ -85,6 +85,7 @@ public static class DbContextEmitter
         StringBuilder sb,
         ApiSmithConfig config,
         IArchitectureLayout layout,
+        NamedSchemaModel named,
         NamedTable t,
         IReadOnlySet<string> collidedEntityNames)
     {
@@ -128,9 +129,25 @@ public static class DbContextEmitter
 
         foreach (var nav in t.ReferenceNavigations)
         {
-            var withMany = t.IsJoinTable
-                ? ".WithMany()"
-                : $".WithMany(x => x.{Naming.Pluralizer.Pluralize(t.EntityName)})";
+            string withMany;
+            if (t.IsJoinTable)
+            {
+                withMany = ".WithMany()";
+            }
+            else
+            {
+                var target = named.Tables.Concat(named.JoinTables).FirstOrDefault(x =>
+                    string.Equals(x.Schema, nav.TargetSchema, System.StringComparison.Ordinal) &&
+                    string.Equals(x.DbTableName, nav.TargetTable, System.StringComparison.Ordinal));
+                var collection = target?.CollectionNavigations.FirstOrDefault(cn =>
+                    string.Equals(cn.SourceSchema, t.Schema, System.StringComparison.Ordinal) &&
+                    string.Equals(cn.SourceTable, t.DbTableName, System.StringComparison.Ordinal) &&
+                    string.Equals(cn.FkColumnName, nav.FkColumnName, System.StringComparison.Ordinal));
+                // Fallback unreachable when NamedSchemaModel Pass 3 is intact; defensive only.
+                withMany = collection is not null
+                    ? $".WithMany(x => x.{collection.Name})"
+                    : ".WithMany()";
+            }
 
             sb.AppendLine($"            b.HasOne(e => e.{nav.Name})");
             sb.AppendLine($"                {withMany}");
